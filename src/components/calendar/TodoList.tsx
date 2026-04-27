@@ -215,6 +215,25 @@ export function TodoList({ dateISO }: { dateISO: string }) {
     setNewRrule(null);
   }
 
+  // Once focus leaves the title input (e.g. after clicking a recurrence
+  // button), the input's onKeyDown stops handling Enter. Bind at the document
+  // level so Enter still submits the new todo. Mirrors TodoEditRow's pattern.
+  useEffect(() => {
+    if (!newTitle.trim() || editingId) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Enter") return;
+      const target = e.target as HTMLElement | null;
+      if (target instanceof HTMLInputElement) return;
+      if (target?.tagName === "TEXTAREA") return;
+      if (document.querySelector('[aria-modal="true"]')) return;
+      e.preventDefault();
+      submitNew();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newTitle, newRrule, editingId]);
+
   return (
     <aside className="relative flex w-72 shrink-0 flex-col border-l bg-muted/20">
       <div className="border-b px-3 py-1.5">
@@ -222,6 +241,14 @@ export function TodoList({ dateISO }: { dateISO: string }) {
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Todos
           </h2>
+          <button
+            type="button"
+            onClick={submitNew}
+            disabled={!newTitle.trim() || create.isPending}
+            className="rounded bg-black px-2 py-0.5 text-xs text-white hover:opacity-90 disabled:opacity-50"
+          >
+            Create
+          </button>
         </div>
         <div className="mt-1 space-y-1">
           <div>

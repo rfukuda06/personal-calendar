@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { DateTime } from "luxon";
 import { api } from "@/lib/api";
@@ -398,9 +399,10 @@ export function DaysView({
             {days.map((d) => {
               const isToday = d.toISODate() === todayISO;
               return (
-                <div
+                <Link
                   key={d.toISODate()}
-                  className="flex items-center justify-center gap-1.5 px-1 py-0.5 text-center"
+                  href={`/calendar/day/${d.toISODate()}`}
+                  className="flex items-center justify-center gap-1.5 px-1 py-0.5 text-center hover:bg-accent"
                 >
                   <span
                     className={`text-sm font-bold uppercase ${
@@ -418,7 +420,7 @@ export function DaysView({
                       {d.toFormat("d")}
                     </span>
                   )}
-                </div>
+                </Link>
               );
             })}
           </div>
