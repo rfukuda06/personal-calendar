@@ -729,8 +729,10 @@ export function DaysView({
             </div>
           ))}
         </div>
+        {bottomRow && (
+          <div className="sticky bottom-0 z-10 bg-background">{bottomRow}</div>
+        )}
       </div>
-      {bottomRow}
     </div>
   );
 }
