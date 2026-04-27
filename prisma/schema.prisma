@@ -1,0 +1,202 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Users ----------
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  googleId  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  categories Category[]
+  events     Event[]
+  bigEvents  BigEvent[]
+  todos      Todo[]
+  dueDates   DueDate[]
+}
+
+// ---------- Categories (user-defined labels with a color) ----------
+
+model Category {
+  id     String @id @default(cuid())
+  userId String
+  name   String
+  color  String // hex, e.g. "#ef4444"
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events    Event[]
+  bigEvents BigEvent[]
+  dueDates  DueDate[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+// ---------- Timed events ----------
+
+model Event {
+  id         String   @id @default(cuid())
+  userId     String
+  categoryId String?
+  title      String
+  notes      String?
+  startUtc   DateTime
+  endUtc     DateTime
+  rrule      String? // RFC 5545 RRULE string, null = single occurrence
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  exceptions EventException[]
+
+  @@index([userId, startUtc])
+}
+
+// Per-occurrence override for a recurring Event.
+// Covers: cancel this one, retitle this one, move this one's time.
+model EventException {
+  id               String    @id @default(cuid())
+  eventId          String
+  originalStartUtc DateTime
+  cancelled        Boolean   @default(false)
+  overrideTitle    String?
+  overrideNotes    String?
+  overrideStartUtc DateTime?
+  overrideEndUtc   DateTime?
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, originalStartUtc])
+}
+
+// ---------- Big events (all-day, no time) ----------
+// birthdays, midterms, tournaments, etc.
+
+model BigEvent {
+  id         String   @id @default(cuid())
+  userId     String
+  categoryId String?
+  title      String
+  notes      String?
+  date       DateTime @db.Date // calendar day in America/Los_Angeles
+  rrule      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  exceptions BigEventException[]
+
+  @@index([userId, date])
+}
+
+// Per-occurrence override for a recurring BigEvent. Mirrors EventException.
+model BigEventException {
+  id                 String   @id @default(cuid())
+  bigEventId         String
+  originalDate       DateTime @db.Date
+  cancelled          Boolean  @default(false)
+  overrideTitle      String?
+  overrideNotes      String?
+  overrideCategoryId String?
+
+  bigEvent BigEvent @relation(fields: [bigEventId], references: [id], onDelete: Cascade)
+
+  @@unique([bigEventId, originalDate])
+}
+
+// ---------- Todos ----------
+
+model Todo {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  notes       String?
+  dueDate     DateTime  @db.Date // calendar day in America/Los_Angeles
+  rrule       String?
+  completedAt DateTime? // for non-recurring todos
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  completions TodoCompletion[]
+  exceptions  TodoException[]
+
+  @@index([userId, dueDate])
+}
+
+// Per-occurrence override for a recurring Todo (separate from TodoCompletion,
+// which only tracks completion state). Same shape as EventException.
+model TodoException {
+  id             String   @id @default(cuid())
+  todoId         String
+  occurrenceDate DateTime @db.Date
+  cancelled      Boolean  @default(false)
+  overrideTitle  String?
+  overrideNotes  String?
+
+  todo Todo @relation(fields: [todoId], references: [id], onDelete: Cascade)
+
+  @@unique([todoId, occurrenceDate])
+}
+
+// Per-occurrence completion for recurring Todos.
+// Non-recurring todos use Todo.completedAt directly.
+model TodoCompletion {
+  id             String   @id @default(cuid())
+  todoId         String
+  occurrenceDate DateTime @db.Date
+  completedAt    DateTime @default(now())
+
+  todo Todo @relation(fields: [todoId], references: [id], onDelete: Cascade)
+
+  @@unique([todoId, occurrenceDate])
+}
+
+// ---------- Due dates (timed deadlines, shown above the calendar grid) ----------
+// Distinct from Events (no duration), BigEvents (no time), Todos (no
+// completion concept). Multiple per day; rendered as a strip under the
+// all-day bar.
+
+model DueDate {
+  id         String   @id @default(cuid())
+  userId     String
+  categoryId String?
+  title      String
+  dueAt      DateTime // UTC datetime
+  rrule      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  exceptions DueDateException[]
+
+  @@index([userId, dueAt])
+}
+
+// Per-occurrence override for a recurring DueDate.
+model DueDateException {
+  id                 String   @id @default(cuid())
+  dueDateId          String
+  originalDueAt      DateTime
+  cancelled          Boolean  @default(false)
+  overrideTitle      String?
+  overrideDueAt      DateTime?
+  overrideCategoryId String?
+
+  dueDate DueDate @relation(fields: [dueDateId], references: [id], onDelete: Cascade)
+
+  @@unique([dueDateId, originalDueAt])
+}
