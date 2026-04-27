@@ -127,11 +127,11 @@ export function RecurrenceEditor({
       <div className="flex flex-wrap gap-1">
         {(
           [
-            ["none", "None"],
             ["daily", "Day"],
             ["weekly", "Week"],
             ["monthly", "Month"],
             ["yearly", "Year"],
+            ["none", "None"],
           ] as [Mode, string][]
         ).map(([m, label]) => (
           <button

@@ -307,14 +307,6 @@ export function EventDialog({
         <div className="space-y-1">
           <Label>Category</Label>
           <div className="flex flex-wrap gap-1">
-            <CategoryChip
-              name="None"
-              color={null}
-              selected={!selectedCategoryId}
-              onClick={() =>
-                setValue("categoryId", "", { shouldDirty: true })
-              }
-            />
             {categories.map((c) => (
               <CategoryChip
                 key={c.id}
@@ -326,6 +318,14 @@ export function EventDialog({
                 }
               />
             ))}
+            <CategoryChip
+              name="None"
+              color={null}
+              selected={!selectedCategoryId}
+              onClick={() =>
+                setValue("categoryId", "", { shouldDirty: true })
+              }
+            />
           </div>
         </div>
 
