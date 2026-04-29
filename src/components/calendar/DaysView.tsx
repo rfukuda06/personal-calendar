@@ -480,11 +480,21 @@ export function DaysView({
               className="relative border-l-2 border-b border-foreground/20"
             >
               {day.toISODate() === nowISO && (
-                <div
-                  className="pointer-events-none absolute left-0 right-0 z-30 h-px bg-red-500"
-                  style={{ top: `${nowTopPx}px` }}
-                  aria-hidden
-                />
+                <>
+                  <div
+                    className="pointer-events-none absolute left-0 right-0 z-30 h-px bg-black"
+                    style={{ top: `${nowTopPx}px`, transform: "translateY(-50%)" }}
+                    aria-hidden
+                  />
+                  <div
+                    className="pointer-events-none absolute left-0 z-30 size-1.5 rounded-full bg-black"
+                    style={{
+                      top: `${nowTopPx}px`,
+                      transform: "translate(-50%, -50%)",
+                    }}
+                    aria-hidden
+                  />
+                </>
               )}
               {Array.from({ length: TOTAL_SLOTS }, (_, i) => {
                 const hour = VISIBLE_START_HOUR + Math.floor(i / SLOTS_PER_HOUR);
