@@ -341,6 +341,7 @@ export function EventDialog({
               setValue("rrule", rule, { shouldDirty: true })
             }
             defaultWeekday={fromUtc(startUtc).weekday - 1}
+            dtstart={startUtc}
           />
         </div>
 

@@ -254,6 +254,7 @@ export function DueDateDialog({
             value={watchedRule ?? null}
             onChange={(rule) => setValue("rrule", rule, { shouldDirty: true })}
             defaultWeekday={defaultWeekday}
+            dtstart={watchedDueAt ? fromLocalInputValue(watchedDueAt) : undefined}
           />
         </div>
 

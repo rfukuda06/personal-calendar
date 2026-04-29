@@ -1,6 +1,8 @@
 "use client";
 
 import { RRule, Frequency, Weekday } from "rrule";
+import { DateTime } from "luxon";
+import { TZ } from "@/lib/time";
 
 /**
  * Small recurrence picker. Outputs an RRULE string (no DTSTART line — the
@@ -82,35 +84,76 @@ function buildRule(mode: Mode, weekdays: number[]): string | null {
   }
 }
 
+/**
+ * Days the dtstart's UTC instant moves forward when expressed in LA. 0 when
+ * the LA and UTC calendar days agree; 1 when the LA day is the previous
+ * calendar day (UTC has crossed midnight ahead). Used to translate weekday
+ * pickers between the LA wall-clock the user thinks in and the UTC weekday
+ * rrule actually expands BYDAY against.
+ */
+function laUtcWeekdayOffset(dtstart: Date | undefined): number {
+  if (!dtstart) return 0;
+  const utcWd = DateTime.fromJSDate(dtstart, { zone: "utc" }).weekday;
+  const laWd = DateTime.fromJSDate(dtstart, { zone: "utc" }).setZone(TZ).weekday;
+  return ((utcWd - laWd) % 7 + 7) % 7;
+}
+
 export function RecurrenceEditor({
   value,
   onChange,
   defaultWeekday,
+  dtstart,
 }: {
   value: string | null;
   onChange: (rule: string | null) => void;
   /**
-   * rrule weekday number (Mon=0…Sun=6) of the event being edited. Used as
-   * the auto-selected day when the user picks "Week" with no day chosen yet,
-   * so weekly rules always land on at least the event's own weekday.
+   * rrule weekday number (Mon=0…Sun=6) of the dtstart's LA weekday. Shown as
+   * a visual hint — when no explicit BYDAY is set, this checkbox renders as
+   * selected so users see which day the weekly rule will land on. The rule
+   * itself stays clean (no BYDAY) so rrule defaults to dtstart's UTC
+   * weekday, avoiding the LA-vs-UTC mismatch at late hours.
    */
   defaultWeekday?: number;
+  /**
+   * UTC instant the recurrence anchors on. When provided AND the LA wall-clock
+   * date differs from the UTC date (i.e. the user picked a late-evening time),
+   * weekdays are translated LA↔UTC so the picker reflects LA days while the
+   * stored BYDAY uses the UTC weekdays rrule expects. Omit for date-only
+   * anchors (BigEvent / Todo) where no translation is needed.
+   */
+  dtstart?: Date;
 }) {
   const mode = modeOf(value);
-  const weekdays = weekdaysOf(value);
+  const offset = laUtcWeekdayOffset(dtstart);
+  // Translate stored BYDAY (UTC weekdays) → LA weekdays for display.
+  const weekdays = weekdaysOf(value).map(
+    (utc) => ((utc - offset) % 7 + 7) % 7,
+  );
+  const showDefault = mode === "weekly" && weekdays.length === 0;
+
+  function emit(la: number[]) {
+    const utc = la.map((n) => (n + offset) % 7);
+    return buildRule("weekly", utc);
+  }
 
   function setMode(next: Mode) {
-    if (next === "weekly" && weekdays.length === 0) {
-      // Force at least one day selected — defaults to the event's own
-      // weekday so the rule starts in the obvious place.
-      const seed = defaultWeekday ?? 0;
-      onChange(buildRule("weekly", [seed]));
+    // No BYDAY auto-seed for weekly: without explicit days the rule stays
+    // clean and rrule falls back to "every 7 days from dtstart", which
+    // preserves the LA wall-clock day correctly. Users can tap weekday
+    // checkboxes below to add an explicit BYDAY.
+    if (next === "weekly") {
+      onChange(emit(weekdays));
       return;
     }
-    onChange(buildRule(next, weekdays));
+    onChange(buildRule(next, []));
   }
   function toggleWeekday(n: number) {
-    const set = new Set(weekdays);
+    // Promote the visual default into the explicit set on first interaction
+    // so clicking a different day adds to (rather than replaces) the default.
+    const set =
+      weekdays.length === 0 && defaultWeekday !== undefined
+        ? new Set([defaultWeekday])
+        : new Set(weekdays);
     if (set.has(n)) {
       // Don't allow unselecting the last day — weekly with zero days is
       // invalid (the rule would silently fall back to dtstart's weekday).
@@ -119,7 +162,7 @@ export function RecurrenceEditor({
     } else {
       set.add(n);
     }
-    onChange(buildRule("weekly", [...set].sort()));
+    onChange(emit([...set].sort()));
   }
 
   return (
@@ -152,7 +195,8 @@ export function RecurrenceEditor({
         <div className="flex gap-1 pt-1">
           {WEEKDAYS.map(({ label, weekday }) => {
             const n = weekdayNum(weekday);
-            const on = weekdays.includes(n);
+            const on =
+              weekdays.includes(n) || (showDefault && n === defaultWeekday);
             return (
               <button
                 key={n}

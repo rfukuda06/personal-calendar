@@ -1,24 +1,8 @@
 import { NextResponse } from "next/server";
-import { DateTime } from "luxon";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
-import { TZ } from "@/lib/time";
 import { dueDateCreateSchema } from "@/schemas/dueDate";
 import { expandOccurrences, occurrenceId } from "@/lib/recurrence";
-
-// Hard cap per calendar day (LA-zone) for non-recurring due dates. Recurring
-// series aren't counted — the cap is on rows the user can directly add for a
-// given day, not on visible occurrences expanded from a rule.
-const MAX_DUE_DATES_PER_DAY = 3;
-
-function laDayUtcRange(dueAt: Date): { start: Date; end: Date } {
-  const local = DateTime.fromJSDate(dueAt, { zone: "utc" }).setZone(TZ);
-  const dayStart = local.startOf("day");
-  return {
-    start: dayStart.toUTC().toJSDate(),
-    end: dayStart.plus({ days: 1 }).toUTC().toJSDate(),
-  };
-}
 
 /**
  * Wire format mirrors events: each item carries `id` (synthetic for
@@ -118,26 +102,6 @@ export async function POST(req: Request) {
   const parsed = dueDateCreateSchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  }
-  // Cap only non-recurring rows. A recurring series is one row but spans
-  // many days; counting it against this cap would block legitimate use.
-  if (!parsed.data.rrule) {
-    const { start, end } = laDayUtcRange(parsed.data.dueAt);
-    const count = await prisma.dueDate.count({
-      where: {
-        userId,
-        rrule: null,
-        dueAt: { gte: start, lt: end },
-      },
-    });
-    if (count >= MAX_DUE_DATES_PER_DAY) {
-      return NextResponse.json(
-        {
-          error: `You can have at most ${MAX_DUE_DATES_PER_DAY} due dates on the same day.`,
-        },
-        { status: 409 },
-      );
-    }
   }
   const created = await prisma.dueDate.create({
     data: { ...parsed.data, userId },

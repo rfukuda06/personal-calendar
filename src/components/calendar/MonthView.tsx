@@ -19,10 +19,10 @@ import type { DueDateModel } from "./DueDateDialog";
 type Category = { id: string; name: string; color: string };
 
 // Caps for what's rendered per month-view cell. Big events aren't capped
-// (a day rarely has more than one anyway). Due dates are server-capped at 3
-// per day already, so the slice here is just a safety bound.
+// (a day rarely has more than one anyway). Due dates show 2; anything more
+// collapses into a "+X more" indicator above the visible chips.
 const MAX_TIMED_PER_CELL = 7;
-const MAX_DUE_PER_CELL = 3;
+const MAX_DUE_PER_CELL = 2;
 
 export function MonthView({ dateISO }: { dateISO: string }) {
   const anchor = laDay(dateISO);
@@ -142,6 +142,7 @@ export function MonthView({ dateISO }: { dateISO: string }) {
           const shown = dayEvents.slice(0, MAX_TIMED_PER_CELL);
           const timedOverflow = dayEvents.length - shown.length;
           const dueShown = dayDue.slice(0, MAX_DUE_PER_CELL);
+          const dueOverflow = dayDue.length - dueShown.length;
 
           return (
             <Link
@@ -216,6 +217,11 @@ export function MonthView({ dateISO }: { dateISO: string }) {
                   matching the day-/week-view due-date chip styling. */}
               {dueShown.length > 0 && (
                 <div className="mt-auto flex flex-col gap-px pt-0.5">
+                  {dueOverflow > 0 && (
+                    <span className="text-[11px] font-medium text-black">
+                      +{dueOverflow} more
+                    </span>
+                  )}
                   {dueShown.map((d) => {
                     const time = fromUtc(new Date(d.dueAt)).toFormat("h:mma");
                     return (

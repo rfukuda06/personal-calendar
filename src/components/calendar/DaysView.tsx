@@ -103,6 +103,21 @@ export function DaysView({
   const [draftEnd, setDraftEnd] = useState<Date>(new Date());
   const [pickingSide, setPickingSide] = useState<PickingSide>(null);
 
+  // "Now" indicator. Tick every minute so the red line tracks the wall clock.
+  const [now, setNow] = useState<DateTime>(() =>
+    DateTime.now().setZone("America/Los_Angeles"),
+  );
+  useEffect(() => {
+    const id = setInterval(
+      () => setNow(DateTime.now().setZone("America/Los_Angeles")),
+      60_000,
+    );
+    return () => clearInterval(id);
+  }, []);
+  const nowMinutes = now.hour * 60 + now.minute;
+  const nowTopPx = (nowMinutes / SLOT_MINUTES) * SLOT_HEIGHT;
+  const nowISO = now.toISODate();
+
   const draftStartRef = useRef(draftStart);
   const draftEndRef = useRef(draftEnd);
   draftStartRef.current = draftStart;
@@ -464,6 +479,13 @@ export function DaysView({
               data-date={day.toISODate()}
               className="relative border-l-2 border-b border-foreground/20"
             >
+              {day.toISODate() === nowISO && (
+                <div
+                  className="pointer-events-none absolute left-0 right-0 z-30 h-px bg-red-500"
+                  style={{ top: `${nowTopPx}px` }}
+                  aria-hidden
+                />
+              )}
               {Array.from({ length: TOTAL_SLOTS }, (_, i) => {
                 const hour = VISIBLE_START_HOUR + Math.floor(i / SLOTS_PER_HOUR);
                 const minute = (i % SLOTS_PER_HOUR) * SLOT_MINUTES;
