@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
 import { DateTime } from "luxon";
 import { api } from "@/lib/api";
 import {
@@ -19,6 +20,30 @@ import {
 import { announceEditing, subscribeEditing } from "@/lib/editingBus";
 
 const MIN_MS = 10 * 60 * 1000;
+
+function neighborsOf(
+  events: EventModel[],
+  origStart: Date,
+  origEnd: Date,
+  day: DateTime,
+  excludeId: string,
+) {
+  let prev: EventModel | null = null;
+  let next: EventModel | null = null;
+  for (const e of events) {
+    if (e.id === excludeId) continue;
+    if (!eventOverlapsDay(new Date(e.startUtc), new Date(e.endUtc), day))
+      continue;
+    const s = new Date(e.startUtc).getTime();
+    const en = new Date(e.endUtc).getTime();
+    if (en <= origStart.getTime()) {
+      if (!prev || en > new Date(prev.endUtc).getTime()) prev = e;
+    } else if (s >= origEnd.getTime()) {
+      if (!next || s < new Date(next.startUtc).getTime()) next = e;
+    }
+  }
+  return { prev, next };
+}
 
 function findAdjacent(
   events: EventModel[],
@@ -151,6 +176,72 @@ export function DaysView({
   const prePickEnd = useRef<Date | null>(null);
   const pickingSideRef = useRef<PickingSide>(pickingSide);
   pickingSideRef.current = pickingSide;
+
+  type DragState = {
+    event: EventModel;
+    day: DateTime;
+    draftStart: Date;
+    draftEnd: Date;
+  };
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const dragStateRef = useRef<DragState | null>(null);
+  dragStateRef.current = dragState;
+  const justDraggedRef = useRef(false);
+
+  type PendingDrop = { event: EventModel; startUtc: Date; endUtc: Date } | null;
+  const [pendingDrop, setPendingDrop] = useState<PendingDrop>(null);
+
+  const qc = useQueryClient();
+  const queryKey = ["events", rangeStart.toISO(), rangeEnd.toISO()];
+
+  const moveMutation = useMutation({
+    mutationFn: async (args: {
+      event: EventModel;
+      startUtc: Date;
+      endUtc: Date;
+      scope: "series" | "occurrence" | "following";
+    }) => {
+      const { event, startUtc, endUtc, scope } = args;
+      if (scope === "occurrence" && event.originalStartUtc) {
+        return api.patch(`/api/events/${event.seriesId}/occurrence`, {
+          originalStartUtc: event.originalStartUtc,
+          startUtc,
+          endUtc,
+        });
+      }
+      if (scope === "following" && event.originalStartUtc) {
+        return api.post(`/api/events/${event.seriesId}/split`, {
+          originalStartUtc: event.originalStartUtc,
+          action: "edit",
+          startUtc,
+          endUtc,
+        });
+      }
+      return api.patch(`/api/events/${event.seriesId}`, { startUtc, endUtc });
+    },
+    onMutate: async ({ event, startUtc, endUtc }) => {
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData<EventModel[]>(queryKey);
+      qc.setQueryData<EventModel[]>(queryKey, (old) =>
+        (old ?? []).map((e) =>
+          e.id === event.id
+            ? {
+                ...e,
+                startUtc: startUtc.toISOString(),
+                endUtc: endUtc.toISOString(),
+              }
+            : e,
+        ),
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) qc.setQueryData(queryKey, ctx.previous);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["events"] });
+    },
+  });
 
   function enterPicking(side: "start" | "end") {
     prePickStart.current = draftStartRef.current;
@@ -316,6 +407,107 @@ export function DaysView({
     } else {
       enterPicking(side);
     }
+  }
+
+  function beginEventDrag(
+    event: EventModel,
+    day: DateTime,
+    e: React.PointerEvent<HTMLButtonElement>,
+  ) {
+    if (dialogOpen || pendingDrop) return;
+    const dayCol = e.currentTarget.closest(
+      "[data-day-column]",
+    ) as HTMLElement | null;
+    if (!dayCol) return;
+    const dayStart = day.startOf("day");
+    const startY = e.clientY;
+    const origStart = new Date(event.startUtc);
+    const origEnd = new Date(event.endUtc);
+    const durationMs = origEnd.getTime() - origStart.getTime();
+    const dayStartMs = dayStart.toUTC().toJSDate().getTime();
+    const dayEndMs = dayStart.plus({ days: 1 }).toUTC().toJSDate().getTime();
+    let moved = false;
+
+    function onMove(ev: PointerEvent) {
+      if (!moved && Math.abs(ev.clientY - startY) > 3) moved = true;
+      if (!moved) return;
+      ev.preventDefault();
+      const deltaSlots = Math.round((ev.clientY - startY) / SLOT_HEIGHT);
+      const deltaMs = deltaSlots * SLOT_MINUTES * 60 * 1000;
+      let newStart = origStart.getTime() + deltaMs;
+      let newEnd = newStart + durationMs;
+      if (newStart < dayStartMs) {
+        newStart = dayStartMs;
+        newEnd = newStart + durationMs;
+      }
+      if (newEnd > dayEndMs) {
+        newEnd = dayEndMs;
+        newStart = newEnd - durationMs;
+      }
+      const { prev, next } = neighborsOf(
+        eventsRef.current,
+        origStart,
+        origEnd,
+        day,
+        event.id,
+      );
+      const minStart = prev ? new Date(prev.endUtc).getTime() : dayStartMs;
+      const maxEnd = next ? new Date(next.startUtc).getTime() : dayEndMs;
+      if (newStart < minStart) {
+        newStart = minStart;
+        newEnd = newStart + durationMs;
+      }
+      if (newEnd > maxEnd) {
+        newEnd = maxEnd;
+        newStart = newEnd - durationMs;
+      }
+      setDragState({
+        event,
+        day,
+        draftStart: new Date(newStart),
+        draftEnd: new Date(newEnd),
+      });
+    }
+
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (!moved) {
+        setDragState(null);
+        return;
+      }
+      justDraggedRef.current = true;
+      setTimeout(() => {
+        justDraggedRef.current = false;
+      }, 0);
+      const drag = dragStateRef.current;
+      if (!drag) return;
+      const sameTime =
+        drag.draftStart.getTime() === origStart.getTime() &&
+        drag.draftEnd.getTime() === origEnd.getTime();
+      if (sameTime) {
+        setDragState(null);
+        return;
+      }
+      if (event.isOccurrence) {
+        setPendingDrop({
+          event,
+          startUtc: drag.draftStart,
+          endUtc: drag.draftEnd,
+        });
+        return;
+      }
+      moveMutation.mutate({
+        event,
+        startUtc: drag.draftStart,
+        endUtc: drag.draftEnd,
+        scope: "series",
+      });
+      setDragState(null);
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   }
 
   function beginDrag(
@@ -591,6 +783,8 @@ export function DaysView({
                 .filter(
                   (e) =>
                     e.id !== editingEvent?.id &&
+                    e.id !== dragState?.event.id &&
+                    e.id !== pendingDrop?.event.id &&
                     eventOverlapsDay(
                       new Date(e.startUtc),
                       new Date(e.endUtc),
@@ -617,14 +811,15 @@ export function DaysView({
                     1;
                   const cat = e.categoryId ? categoryById[e.categoryId] : null;
                   const color = cat?.color ?? "#6b7280";
-                  const singleLine = heightPx < 30;
+                  const singleLine = pos.durationMin <= 40 || heightPx < 30;
                   const spread = !singleLine;
                   const startStr = fromUtc(new Date(e.startUtc)).toFormat(
                     "h:mm",
                   );
                   const endStr = fromUtc(new Date(e.endUtc)).toFormat("h:mm");
 
-                  const isHalfHour = pos.durationMin === 30;
+                  const isHalfHour =
+                    pos.durationMin === 30 || pos.durationMin === 40;
                   const isTwentyMin = pos.durationMin === 20;
                   const isTenMin = pos.durationMin === 10;
                   let titleClass: string;
@@ -662,11 +857,13 @@ export function DaysView({
                     <button
                       key={e.id}
                       type="button"
+                      onPointerDown={(ev) => beginEventDrag(e, day, ev)}
                       onClick={() => {
+                        if (justDraggedRef.current) return;
                         if (dialogOpen) return;
                         openEdit(e);
                       }}
-                      className={`absolute left-0 right-0 overflow-hidden text-left text-white ${
+                      className={`absolute left-0 right-0 cursor-grab overflow-hidden text-left text-white touch-none ${
                         heightPx < 22 ? "px-1 py-0" : "px-1.5 py-0.5"
                       } ${!singleLine ? "flex flex-col" : ""}`}
                       style={{
@@ -709,6 +906,41 @@ export function DaysView({
                     </button>
                   );
                 })}
+
+              {(dragState?.day.toISODate() === day.toISODate() ||
+                (pendingDrop &&
+                  fromUtc(pendingDrop.startUtc).toISODate() ===
+                    day.toISODate())) &&
+                (() => {
+                  const ev = dragState?.event ?? pendingDrop!.event;
+                  const ds = dragState?.draftStart ?? pendingDrop!.startUtc;
+                  const de = dragState?.draftEnd ?? pendingDrop!.endUtc;
+                  const pos = eventPositionInDay(ds, de, day);
+                  if (!pos) return null;
+                  const topPx = (pos.topMin / SLOT_MINUTES) * SLOT_HEIGHT;
+                  const heightPx =
+                    (pos.durationMin / SLOT_MINUTES) * SLOT_HEIGHT - 1;
+                  const cat = ev.categoryId
+                    ? categoryById[ev.categoryId]
+                    : null;
+                  const color = cat?.color ?? "#6b7280";
+                  return (
+                    <div
+                      className="pointer-events-none absolute left-0 right-0 overflow-hidden rounded-sm px-1.5 py-0.5 text-left text-xs font-bold text-white opacity-80 ring-2 ring-primary"
+                      style={{
+                        top: `${topPx}px`,
+                        height: `${heightPx}px`,
+                        backgroundColor: color,
+                      }}
+                    >
+                      <span className="truncate">{ev.title}</span>{" "}
+                      <span className="ml-1 font-medium tabular-nums">
+                        {fromUtc(ds).toFormat("h:mm")}–
+                        {fromUtc(de).toFormat("h:mm")}
+                      </span>
+                    </div>
+                  );
+                })()}
 
               {dialogOpen && day.toISODate() === draftDayISO && (() => {
                 const pos = eventPositionInDay(draftStart, draftEnd, day);
@@ -765,6 +997,66 @@ export function DaysView({
           <div className="sticky bottom-0 z-10 bg-background">{bottomRow}</div>
         )}
       </div>
+      {pendingDrop && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-background/70 p-4 backdrop-blur-sm"
+          onClick={() => setPendingDrop(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-lg border bg-background p-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <p className="mb-4 text-sm">
+              Move this event only, or this and every following event in the
+              series?
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPendingDrop(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const p = pendingDrop;
+                  setPendingDrop(null);
+                  setDragState(null);
+                  moveMutation.mutate({
+                    event: p.event,
+                    startUtc: p.startUtc,
+                    endUtc: p.endUtc,
+                    scope: "following",
+                  });
+                }}
+              >
+                This and following
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  const p = pendingDrop;
+                  setPendingDrop(null);
+                  setDragState(null);
+                  moveMutation.mutate({
+                    event: p.event,
+                    startUtc: p.startUtc,
+                    endUtc: p.endUtc,
+                    scope: "occurrence",
+                  });
+                }}
+              >
+                This event
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
