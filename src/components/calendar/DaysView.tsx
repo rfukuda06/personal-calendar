@@ -191,6 +191,19 @@ export function DaysView({
   type PendingDrop = { event: EventModel; startUtc: Date; endUtc: Date } | null;
   const [pendingDrop, setPendingDrop] = useState<PendingDrop>(null);
 
+  useEffect(() => {
+    if (!pendingDrop) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setPendingDrop(null);
+      setDragState(null);
+    }
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [pendingDrop]);
+
   const qc = useQueryClient();
   const queryKey = ["events", rangeStart.toISO(), rangeEnd.toISO()];
 
