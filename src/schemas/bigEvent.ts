@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { daysBeforeRemindersArraySchema } from "./reminder";
 
 // BigEvent (all-day) dates are stored as @db.Date — just the calendar day,
 // no time. We accept a "YYYY-MM-DD" string over the wire and coerce to a
@@ -14,6 +15,7 @@ const bigEventFields = z.object({
   date: dateOnly,
   categoryId: z.string().cuid().optional().nullable(),
   rrule: z.string().optional().nullable(), // honored starting Phase 9
+  reminders: daysBeforeRemindersArraySchema,
 });
 
 export const bigEventCreateSchema = bigEventFields;

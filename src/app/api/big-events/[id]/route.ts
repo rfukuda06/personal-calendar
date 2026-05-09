@@ -15,15 +15,31 @@ export async function PATCH(req: Request, { params }: Params) {
       { status: 400 },
     );
   }
-  const result = await prisma.bigEvent.updateMany({
-    where: { id, userId },
-    data: parsed.data,
+  const { reminders, ...data } = parsed.data;
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.bigEvent.updateMany({
+      where: { id, userId },
+      data,
+    });
+    if (result.count === 0) return null;
+    if (reminders !== undefined) {
+      await tx.reminder.deleteMany({ where: { bigEventId: id } });
+      if (reminders.length > 0) {
+        await tx.reminder.createMany({
+          data: reminders.map((r) => ({
+            userId,
+            bigEventId: id,
+            daysBefore: r.daysBefore,
+          })),
+        });
+      }
+    }
+    return tx.bigEvent.findUnique({ where: { id } });
   });
-  if (result.count === 0) {
+  if (!updated) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  const item = await prisma.bigEvent.findUnique({ where: { id } });
-  return NextResponse.json(item);
+  return NextResponse.json(updated);
 }
 
 export async function DELETE(_req: Request, { params }: Params) {

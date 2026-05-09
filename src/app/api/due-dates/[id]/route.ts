@@ -54,15 +54,31 @@ export async function PATCH(req: Request, { params }: Params) {
       }
     }
   }
-  const result = await prisma.dueDate.updateMany({
-    where: { id, userId },
-    data: parsed.data,
+  const { reminders, ...data } = parsed.data;
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.dueDate.updateMany({
+      where: { id, userId },
+      data,
+    });
+    if (result.count === 0) return null;
+    if (reminders !== undefined) {
+      await tx.reminder.deleteMany({ where: { dueDateId: id } });
+      if (reminders.length > 0) {
+        await tx.reminder.createMany({
+          data: reminders.map((r) => ({
+            userId,
+            dueDateId: id,
+            offsetMinutes: r.offsetMinutes,
+          })),
+        });
+      }
+    }
+    return tx.dueDate.findUnique({ where: { id } });
   });
-  if (result.count === 0) {
+  if (!updated) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  const item = await prisma.dueDate.findUnique({ where: { id } });
-  return NextResponse.json(item);
+  return NextResponse.json(updated);
 }
 
 export async function DELETE(_req: Request, { params }: Params) {

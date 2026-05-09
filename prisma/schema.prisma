@@ -10,19 +10,23 @@ datasource db {
 // ---------- Users ----------
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  image     String?
-  googleId  String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  email                String   @unique
+  name                 String?
+  image                String?
+  googleId             String   @unique
+  // Global toggle. When false the cron skips this user entirely.
+  notificationsEnabled Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  categories Category[]
-  events     Event[]
-  bigEvents  BigEvent[]
-  todos      Todo[]
-  dueDates   DueDate[]
+  categories      Category[]
+  events          Event[]
+  bigEvents       BigEvent[]
+  todos           Todo[]
+  dueDates        DueDate[]
+  reminders       Reminder[]
+  todoDigestSends TodoDigestSend[]
 }
 
 // ---------- Categories (user-defined labels with a color) ----------
@@ -53,12 +57,18 @@ model Event {
   startUtc   DateTime
   endUtc     DateTime
   rrule      String? // RFC 5545 RRULE string, null = single occurrence
+  // Last possible occurrence start of the series, or null for an open-ended
+  // RRULE (no UNTIL/COUNT). Denormalized from `rrule` on write so the events
+  // list query can prune series that have already finished without expanding
+  // them. Always null for non-recurring rows.
+  seriesEndUtc DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   category   Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   exceptions EventException[]
+  reminders  Reminder[]
 
   @@index([userId, startUtc])
 }
@@ -97,6 +107,7 @@ model BigEvent {
   user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   category   Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   exceptions BigEventException[]
+  reminders  Reminder[]
 
   @@index([userId, date])
 }
@@ -182,6 +193,7 @@ model DueDate {
   user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   category   Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   exceptions DueDateException[]
+  reminders  Reminder[]
 
   @@index([userId, dueAt])
 }
@@ -199,4 +211,67 @@ model DueDateException {
   dueDate DueDate @relation(fields: [dueDateId], references: [id], onDelete: Cascade)
 
   @@unique([dueDateId, originalDueAt])
+}
+
+// ---------- Reminders ----------
+//
+// One row per (parent, offset). A single event can have multiple reminders
+// stacked (e.g. 1 week + 1 day + 30 min). Exactly one of eventId / bigEventId
+// / dueDateId is non-null — discriminator-style polymorphism matching the
+// rest of this schema (see Category's per-entity collections).
+//
+// `offsetMinutes` applies to Event and DueDate (minutes before start).
+// `daysBefore` applies to BigEvent only — fire time is (date - N days) at
+// 22:00 LA, so the time-of-day is fixed. This split keeps each entity's
+// reminder semantics explicit on the row.
+model Reminder {
+  id            String   @id @default(cuid())
+  userId        String
+  eventId       String?
+  bigEventId    String?
+  dueDateId     String?
+  offsetMinutes Int?
+  daysBefore    Int?
+  createdAt     DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event    Event?    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  bigEvent BigEvent? @relation(fields: [bigEventId], references: [id], onDelete: Cascade)
+  dueDate  DueDate?  @relation(fields: [dueDateId], references: [id], onDelete: Cascade)
+
+  sends ReminderSend[]
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([bigEventId])
+  @@index([dueDateId])
+}
+
+// Idempotency log: one row per (Reminder, occurrence) actually emailed.
+// `occurrenceKey` is the ISO datetime of the instance start (BigEvent uses
+// the date-only ISO). Non-recurring parents have a single occurrenceKey
+// equal to their own start. Unique constraint is the safety net against
+// double-sends if the cron job overlaps itself.
+model ReminderSend {
+  id            String   @id @default(cuid())
+  reminderId    String
+  occurrenceKey String
+  sentAt        DateTime @default(now())
+
+  reminder Reminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+
+  @@unique([reminderId, occurrenceKey])
+}
+
+// One row per user per day a 12pm-LA todo digest was emailed. Prevents the
+// cron from sending two digests if it overlaps the noon minute twice.
+model TodoDigestSend {
+  id         String   @id @default(cuid())
+  userId     String
+  digestDate DateTime @db.Date
+  sentAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, digestDate])
 }

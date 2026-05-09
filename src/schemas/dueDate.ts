@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { offsetRemindersArraySchema } from "./reminder";
 
 const minuteBoundary = z.coerce.date().transform((d) => {
   const r = new Date(d);
@@ -11,6 +12,7 @@ const dueDateFields = z.object({
   dueAt: minuteBoundary,
   categoryId: z.string().cuid().optional().nullable(),
   rrule: z.string().optional().nullable(),
+  reminders: offsetRemindersArraySchema,
 });
 
 export const dueDateCreateSchema = dueDateFields;

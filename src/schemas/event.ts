@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { offsetRemindersArraySchema } from "./reminder";
 
 // Truncate to the minute boundary so touching events (end === start) compare
 // cleanly. Stored seconds/ms would otherwise drift past the next event's
@@ -16,6 +17,10 @@ const eventFields = z.object({
   endUtc: minuteBoundary,
   categoryId: z.string().cuid().optional().nullable(),
   rrule: z.string().optional().nullable(), // honored starting Phase 9
+  // When present, the API replaces all of this event's reminders with this
+  // list (delete + insert in a single transaction). When omitted on PATCH,
+  // existing reminders are left alone.
+  reminders: offsetRemindersArraySchema,
 });
 
 export const eventCreateSchema = eventFields.refine(

@@ -77,3 +77,22 @@ Short decision records for the big choices. Each entry: **what** we chose, **wha
 **Chose:** v1 uses click-to-open dialog for all create/edit. No reminders.
 
 **Why:** Drag-and-drop needs a library and layout logic that's a feature of its own. Real notifications need email or push infrastructure. Both are additive — the core model doesn't change when we add them.
+
+## 13. Email reminders via Render Cron + Resend (no queue)
+
+**Chose:** A single `Reminder` table holds stackable per-event reminders (one row per offset). A Render Cron Job runs `npm run reminders:cron` every minute, queries reminders whose computed fire time falls in the past minute, and sends emails through Resend. Idempotency is enforced by a unique `(reminderId, occurrenceKey)` row in `ReminderSend` — for non-recurring events `occurrenceKey` is the parent's ISO start; for recurring events it's the specific instance's ISO start. RRULEs are expanded on-the-fly inside the cron, never materialized as reminder rows. Todos get a single 12pm-LA digest tracked by `(userId, digestDate)` in `TodoDigestSend`.
+
+**Alternatives considered:**
+- **BullMQ / Redis-backed job queue.** Schedule each reminder as a delayed job at event-creation time. More precise, supports retries cleanly, but adds Redis as a new piece of paid infra and a queue worker to manage.
+- **pg_boss** (Postgres-backed queue). Same model as BullMQ with no Redis, but adds a library + scheduler-on-write logic and gains very little over straight polling at our scale.
+- **Two-way Google Calendar sync** so Google sends notifications. Drops the entire scheduling problem but introduces sync tokens, webhook receivers, and conflict resolution — a much bigger build.
+
+**Why:** For a personal-scale calendar (tens to hundreds of events), polling once per minute is overwhelmingly the simplest design that meets the requirement. Computing recurring fire times on-the-fly means the cron always reflects the latest RRULE without any "go back and rewrite the materialized rows when someone edits the rule" code. The unique-index approach to idempotency works regardless of whether the parent is recurring or not, with one shape.
+
+## 14. BigEvent reminders are "N days before, fixed at 22:00 LA"
+
+**Chose:** `Reminder.daysBefore` (an integer) instead of an offset in minutes. Fire time is computed as `(eventDate - daysBefore days)` at 22:00 in `America/Los_Angeles`, regardless of when the event "starts." Only `daysBefore` is editable in the UI.
+
+**Alternatives:** Reuse `offsetMinutes` and let the UI emit `daysBefore * 1440` minutes. Or let the user pick the time-of-day too.
+
+**Why:** BigEvents are all-day items with no inherent start time, so "N minutes before" has no anchor. Fixing the time-of-day at 22:00 LA matches the "evening reminder for tomorrow's birthday" mental model and keeps the UI to a single integer. Storing `daysBefore` directly avoids arithmetic ambiguity in the cron and makes the rows self-describing on inspection.

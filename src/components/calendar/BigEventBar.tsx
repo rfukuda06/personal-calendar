@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { DateTime } from "luxon";
 import { api } from "@/lib/api";
 import { BigEventDialog, type BigEventModel } from "./BigEventDialog";
@@ -25,6 +25,7 @@ export function BigEventBar({
       api.get<BigEventModel[]>(
         `/api/big-events?from=${fromISO}&to=${toISO}`,
       ),
+    placeholderData: keepPreviousData,
   });
 
   // Group big events by YYYY-MM-DD. Database stores midnight UTC, so the

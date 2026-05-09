@@ -3,7 +3,11 @@ import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 import { hasOverlappingEvent } from "@/lib/events";
 import { eventCreateSchema } from "@/schemas/event";
-import { expandOccurrences, occurrenceId } from "@/lib/recurrence";
+import {
+  computeSeriesEndUtc,
+  expandOccurrences,
+  occurrenceId,
+} from "@/lib/recurrence";
 
 /**
  * Wire format for events returned by GET:
@@ -41,12 +45,26 @@ export async function GET(req: Request) {
       endUtc: { gt: from },
     },
     orderBy: { startUtc: "asc" },
+    include: { reminders: { select: { offsetMinutes: true } } },
   });
 
-  // Recurring series with their exceptions.
+  // Recurring series with their exceptions. Skip series that have already
+  // finished (seriesEndUtc < from). seriesEndUtc is null for open-ended rules,
+  // so those always pass through. We can't filter the lower bound (startUtc
+  // > to) cleanly here because we still need to honor the per-series 500-cap
+  // edge case; the bigger win is pruning expired finite series, which this
+  // does.
   const series = await prisma.event.findMany({
-    where: { userId, rrule: { not: null } },
-    include: { exceptions: true },
+    where: {
+      userId,
+      rrule: { not: null },
+      OR: [{ seriesEndUtc: null }, { seriesEndUtc: { gte: from } }],
+      startUtc: { lt: to },
+    },
+    include: {
+      exceptions: true,
+      reminders: { select: { offsetMinutes: true } },
+    },
   });
 
   type Wire = {
@@ -60,6 +78,7 @@ export async function GET(req: Request) {
     rrule: string | null;
     isOccurrence: boolean;
     originalStartUtc: Date | null;
+    reminders: { offsetMinutes: number }[];
   };
 
   const expanded: Wire[] = [];
@@ -90,6 +109,9 @@ export async function GET(req: Request) {
         rrule: s.rrule,
         isOccurrence: true,
         originalStartUtc: occStart,
+        reminders: s.reminders.map((r) => ({
+          offsetMinutes: r.offsetMinutes ?? 0,
+        })),
       });
     }
   }
@@ -106,6 +128,9 @@ export async function GET(req: Request) {
       rrule: null,
       isOccurrence: false,
       originalStartUtc: null,
+      reminders: e.reminders.map((r) => ({
+        offsetMinutes: r.offsetMinutes ?? 0,
+      })),
     })),
     ...expanded,
   ];
@@ -132,8 +157,24 @@ export async function POST(req: Request) {
       );
     }
   }
+  const seriesEndUtc = parsed.data.rrule
+    ? computeSeriesEndUtc(parsed.data.rrule, parsed.data.startUtc)
+    : null;
+  const { reminders, ...eventData } = parsed.data;
   const event = await prisma.event.create({
-    data: { ...parsed.data, userId },
+    data: {
+      ...eventData,
+      userId,
+      seriesEndUtc,
+      reminders: reminders
+        ? {
+            create: reminders.map((r) => ({
+              userId,
+              offsetMinutes: r.offsetMinutes,
+            })),
+          }
+        : undefined,
+    },
   });
   return NextResponse.json(event, { status: 201 });
 }

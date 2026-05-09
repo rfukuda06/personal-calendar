@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { DateTime } from "luxon";
 import { api } from "@/lib/api";
 import { fromUtc, toLocalInputValue } from "@/lib/time";
@@ -35,6 +35,7 @@ export function DueDateBar({
       api.get<DueDateModel[]>(
         `/api/due-dates?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`,
       ),
+    placeholderData: keepPreviousData,
   });
 
   // Group due dates by their LA-local YYYY-MM-DD (the day they belong to in

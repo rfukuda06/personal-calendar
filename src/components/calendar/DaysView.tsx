@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { DateTime } from "luxon";
 import { api } from "@/lib/api";
@@ -116,7 +121,17 @@ export function DaysView({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (scrollRef.current) {
+    if (!scrollRef.current) return;
+    // Time-of-day-aware initial scroll:
+    //   22:00–23:59 → bottom of grid (evening)
+    //   00:00–06:59 → top of grid (early morning)
+    //   07:00–21:59 → DEFAULT_SCROLL_HOUR (7 AM)
+    const nowHour = DateTime.now().setZone("America/Los_Angeles").hour;
+    if (nowHour >= 22) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    } else if (nowHour < 7) {
+      scrollRef.current.scrollTop = 0;
+    } else {
       scrollRef.current.scrollTop =
         (DEFAULT_SCROLL_HOUR - VISIBLE_START_HOUR) * HOUR_HEIGHT;
     }
@@ -156,7 +171,29 @@ export function DaysView({
           rangeStart.toUTC().toISO()!,
         )}&to=${encodeURIComponent(rangeEnd.toUTC().toISO()!)}`,
       ),
+    placeholderData: keepPreviousData,
   });
+
+  // Prefetch the previous and next ranges of equal span so navigating with
+  // arrow keys or the prev/next buttons feels instant. `days.length` is the
+  // visible span (1 for day view, 7 for week view).
+  const qc = useQueryClient();
+  const span = days.length;
+  useEffect(() => {
+    for (const shift of [-span, span]) {
+      const ps = rangeStart.plus({ days: shift });
+      const pe = rangeEnd.plus({ days: shift });
+      qc.prefetchQuery({
+        queryKey: ["events", ps.toISO(), pe.toISO()],
+        queryFn: () =>
+          api.get<EventModel[]>(
+            `/api/events?from=${encodeURIComponent(
+              ps.toUTC().toISO()!,
+            )}&to=${encodeURIComponent(pe.toUTC().toISO()!)}`,
+          ),
+      });
+    }
+  }, [rangeStart.toISO(), rangeEnd.toISO(), span, qc]);
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
@@ -204,7 +241,6 @@ export function DaysView({
     return () => document.removeEventListener("keydown", onKey, true);
   }, [pendingDrop]);
 
-  const qc = useQueryClient();
   const queryKey = ["events", rangeStart.toISO(), rangeEnd.toISO()];
 
   const moveMutation = useMutation({

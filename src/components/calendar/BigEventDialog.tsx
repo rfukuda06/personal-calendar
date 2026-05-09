@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RecurrenceEditor } from "./RecurrenceEditor";
+import { DaysBeforeReminderEditor } from "./ReminderEditor";
 
 export type BigEventModel = {
   id: string;
@@ -24,6 +25,7 @@ export type BigEventModel = {
   categoryId: string | null;
   rrule?: string | null;
   isOccurrence?: boolean;
+  reminders?: { daysBefore: number }[];
 };
 
 const formSchema = z.object({
@@ -31,6 +33,7 @@ const formSchema = z.object({
   notes: z.string().max(4000),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date is required"),
   rrule: z.string().nullable(),
+  reminders: z.array(z.object({ daysBefore: z.number().int().min(0) })),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -68,6 +71,7 @@ export function BigEventDialog({
 
   const watchedRule = watch("rrule");
   const watchedDate = watch("date");
+  const watchedReminders = watch("reminders");
   const defaultWeekday = watchedDate
     ? DateTime.fromISO(watchedDate).weekday - 1
     : 0;
@@ -88,13 +92,16 @@ export function BigEventDialog({
         notes: bigEvent.notes ?? "",
         date: bigEvent.date.slice(0, 10),
         rrule: bigEvent.rrule ?? null,
+        reminders: bigEvent.reminders ?? [],
       });
     } else {
+      // Default: one reminder, the day before at 10pm.
       reset({
         title: "",
         notes: "",
         date: defaultDateISO,
         rrule: null,
+        reminders: [{ daysBefore: 1 }],
       });
     }
   }, [open, bigEvent, defaultDateISO, reset]);
@@ -133,6 +140,7 @@ export function BigEventDialog({
         notes: values.notes || null,
         date: values.date,
         rrule: values.rrule || null,
+        reminders: values.reminders,
       };
       if (isEdit) return api.patch(`/api/big-events/${seriesId}`, body);
       return api.post("/api/big-events", body);
@@ -266,6 +274,16 @@ export function BigEventDialog({
               setValue("rrule", rule, { shouldDirty: true })
             }
             defaultWeekday={defaultWeekday}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label>Reminders</Label>
+          <DaysBeforeReminderEditor
+            value={watchedReminders ?? []}
+            onChange={(next) =>
+              setValue("reminders", next, { shouldDirty: true })
+            }
           />
         </div>
 

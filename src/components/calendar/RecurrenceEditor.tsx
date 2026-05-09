@@ -62,26 +62,54 @@ function weekdaysOf(rule: string | null | undefined): number[] {
   });
 }
 
-function buildRule(mode: Mode, weekdays: number[]): string | null {
-  switch (mode) {
-    case "none":
-      return null;
-    case "daily":
-      return new RRule({ freq: RRule.DAILY }).toString().replace(/^DTSTART:[^\n]*\n/, "").replace(/^RRULE:/, "");
-    case "weekly": {
-      const byweekday = weekdays.length > 0
-        ? weekdays.map((n) => new Weekday(n))
-        : undefined;
-      return new RRule({ freq: RRule.WEEKLY, byweekday })
-        .toString()
-        .replace(/^DTSTART:[^\n]*\n/, "")
-        .replace(/^RRULE:/, "");
+/** Read UNTIL from a stored rule as an LA-local YYYY-MM-DD, or "" if none. */
+function untilDateOf(rule: string | null | undefined): string {
+  if (!rule) return "";
+  const opts = RRule.parseString(rule);
+  if (!opts.until) return "";
+  return DateTime.fromJSDate(opts.until, { zone: "utc" })
+    .setZone(TZ)
+    .toISODate() ?? "";
+}
+
+/**
+ * Convert a YYYY-MM-DD LA date into a UTC instant suitable for RRULE UNTIL.
+ * UNTIL is inclusive, so we use end-of-day LA — every occurrence on that
+ * calendar day is kept, the next day is dropped.
+ */
+function untilFromLaDate(iso: string): Date | undefined {
+  if (!iso) return undefined;
+  const d = DateTime.fromISO(iso, { zone: TZ }).endOf("day");
+  if (!d.isValid) return undefined;
+  return d.toUTC().toJSDate();
+}
+
+function buildRule(
+  mode: Mode,
+  weekdays: number[],
+  until: Date | undefined,
+): string | null {
+  if (mode === "none") return null;
+  const base = (() => {
+    switch (mode) {
+      case "daily":
+        return { freq: RRule.DAILY };
+      case "weekly":
+        return {
+          freq: RRule.WEEKLY,
+          byweekday:
+            weekdays.length > 0 ? weekdays.map((n) => new Weekday(n)) : undefined,
+        };
+      case "monthly":
+        return { freq: RRule.MONTHLY };
+      case "yearly":
+        return { freq: RRule.YEARLY };
     }
-    case "monthly":
-      return new RRule({ freq: RRule.MONTHLY }).toString().replace(/^DTSTART:[^\n]*\n/, "").replace(/^RRULE:/, "");
-    case "yearly":
-      return new RRule({ freq: RRule.YEARLY }).toString().replace(/^DTSTART:[^\n]*\n/, "").replace(/^RRULE:/, "");
-  }
+  })();
+  return new RRule({ ...base, until })
+    .toString()
+    .replace(/^DTSTART:[^\n]*\n/, "")
+    .replace(/^RRULE:/, "");
 }
 
 /**
@@ -130,10 +158,11 @@ export function RecurrenceEditor({
     (utc) => ((utc - offset) % 7 + 7) % 7,
   );
   const showDefault = mode === "weekly" && weekdays.length === 0;
+  const untilDate = untilDateOf(value);
 
-  function emit(la: number[]) {
+  function emit(nextMode: Mode, la: number[], untilIso: string) {
     const utc = la.map((n) => (n + offset) % 7);
-    return buildRule("weekly", utc);
+    return buildRule(nextMode, utc, untilFromLaDate(untilIso));
   }
 
   function setMode(next: Mode) {
@@ -141,11 +170,11 @@ export function RecurrenceEditor({
     // clean and rrule falls back to "every 7 days from dtstart", which
     // preserves the LA wall-clock day correctly. Users can tap weekday
     // checkboxes below to add an explicit BYDAY.
-    if (next === "weekly") {
-      onChange(emit(weekdays));
+    if (next === "none") {
+      onChange(null);
       return;
     }
-    onChange(buildRule(next, []));
+    onChange(emit(next, next === "weekly" ? weekdays : [], untilDate));
   }
   function toggleWeekday(n: number) {
     // Promote the visual default into the explicit set on first interaction
@@ -162,7 +191,10 @@ export function RecurrenceEditor({
     } else {
       set.add(n);
     }
-    onChange(emit([...set].sort()));
+    onChange(emit("weekly", [...set].sort(), untilDate));
+  }
+  function setUntil(iso: string) {
+    onChange(emit(mode, weekdays, iso));
   }
 
   return (
@@ -213,6 +245,29 @@ export function RecurrenceEditor({
               </button>
             );
           })}
+        </div>
+      )}
+      {mode !== "none" && (
+        <div className="flex items-center gap-2 pt-1 text-xs">
+          <span className="text-muted-foreground">Ends on</span>
+          <input
+            type="date"
+            value={untilDate}
+            onChange={(e) => setUntil(e.target.value)}
+            className="rounded border bg-background px-1.5 py-0.5 text-xs"
+          />
+          {untilDate && (
+            <button
+              type="button"
+              onClick={() => setUntil("")}
+              className="text-muted-foreground underline"
+            >
+              clear
+            </button>
+          )}
+          {!untilDate && (
+            <span className="text-muted-foreground">(forever)</span>
+          )}
         </div>
       )}
     </div>

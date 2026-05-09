@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DateTime } from "luxon";
 import { api } from "@/lib/api";
 import {
@@ -40,6 +40,43 @@ export function MonthView({ dateISO }: { dateISO: string }) {
     return out;
   }, [dateISO]);
 
+  // Background-prefetch the previous and next month so flipping is instant.
+  // Runs after this render commits; uses queryClient.prefetchQuery, which
+  // does nothing if the data is still fresh in cache (so it's free on
+  // re-mount). Using prev/next *month grids* (not just ±1 month from anchor)
+  // matches what those views will actually request.
+  const qc = useQueryClient();
+  useEffect(() => {
+    const prevAnchor = anchor.minus({ months: 1 });
+    const nextAnchor = anchor.plus({ months: 1 });
+    for (const a of [prevAnchor, nextAnchor]) {
+      const r = monthGridRange(a);
+      const fromISO = r.start.toUTC().toISO()!;
+      const toISO = r.end.toUTC().toISO()!;
+      qc.prefetchQuery({
+        queryKey: ["events", r.start.toISO(), r.end.toISO()],
+        queryFn: () =>
+          api.get<EventModel[]>(
+            `/api/events?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`,
+          ),
+      });
+      qc.prefetchQuery({
+        queryKey: ["big-events", r.start.toISODate(), r.end.toISODate()],
+        queryFn: () =>
+          api.get<BigEventModel[]>(
+            `/api/big-events?from=${r.start.toISODate()}&to=${r.end.toISODate()}`,
+          ),
+      });
+      qc.prefetchQuery({
+        queryKey: ["due-dates", r.start.toUTC().toISO(), r.end.toUTC().toISO()],
+        queryFn: () =>
+          api.get<DueDateModel[]>(
+            `/api/due-dates?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`,
+          ),
+      });
+    }
+  }, [dateISO, qc]);
+
   const { data: events = [] } = useQuery({
     queryKey: ["events", start.toISO(), end.toISO()],
     queryFn: () =>
@@ -48,6 +85,7 @@ export function MonthView({ dateISO }: { dateISO: string }) {
           start.toUTC().toISO()!,
         )}&to=${encodeURIComponent(end.toUTC().toISO()!)}`,
       ),
+    placeholderData: keepPreviousData,
   });
 
   const { data: bigEvents = [] } = useQuery({
@@ -56,6 +94,7 @@ export function MonthView({ dateISO }: { dateISO: string }) {
       api.get<BigEventModel[]>(
         `/api/big-events?from=${start.toISODate()}&to=${end.toISODate()}`,
       ),
+    placeholderData: keepPreviousData,
   });
   const bigEventsByDate = useMemo(() => {
     const out: Record<string, BigEventModel[]> = {};
@@ -74,6 +113,7 @@ export function MonthView({ dateISO }: { dateISO: string }) {
           start.toUTC().toISO()!,
         )}&to=${encodeURIComponent(end.toUTC().toISO()!)}`,
       ),
+    placeholderData: keepPreviousData,
   });
   const dueDatesByDate = useMemo(() => {
     const out: Record<string, DueDateModel[]> = {};

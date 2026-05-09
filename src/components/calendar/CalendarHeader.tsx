@@ -229,6 +229,12 @@ export function CalendarHeader({ email }: { email?: string | null }) {
         >
           Shortcuts
         </Link>
+        <Link
+          href="/calendar/settings/notifications"
+          className="text-muted-foreground hover:text-foreground hover:underline"
+        >
+          Notifications
+        </Link>
         <span className="text-muted-foreground">{email}</span>
         <form action={signOutAction}>
           <Button variant="outline" size="sm" type="submit">

@@ -34,11 +34,15 @@ export async function GET(req: Request) {
       dueAt: { gte: from, lt: to },
     },
     orderBy: { dueAt: "asc" },
+    include: { reminders: { select: { offsetMinutes: true } } },
   });
 
   const series = await prisma.dueDate.findMany({
     where: { userId, rrule: { not: null } },
-    include: { exceptions: true },
+    include: {
+      exceptions: true,
+      reminders: { select: { offsetMinutes: true } },
+    },
   });
 
   type Wire = {
@@ -50,6 +54,7 @@ export async function GET(req: Request) {
     rrule: string | null;
     isOccurrence: boolean;
     originalDueAt: Date | null;
+    reminders: { offsetMinutes: number }[];
   };
 
   const expanded: Wire[] = [];
@@ -76,6 +81,9 @@ export async function GET(req: Request) {
         rrule: s.rrule,
         isOccurrence: true,
         originalDueAt: occ,
+        reminders: s.reminders.map((r) => ({
+          offsetMinutes: r.offsetMinutes ?? 0,
+        })),
       });
     }
   }
@@ -90,6 +98,9 @@ export async function GET(req: Request) {
       rrule: null,
       isOccurrence: false,
       originalDueAt: null,
+      reminders: s.reminders.map((r) => ({
+        offsetMinutes: r.offsetMinutes ?? 0,
+      })),
     })),
     ...expanded,
   ];
@@ -103,8 +114,20 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
+  const { reminders, ...dueDateData } = parsed.data;
   const created = await prisma.dueDate.create({
-    data: { ...parsed.data, userId },
+    data: {
+      ...dueDateData,
+      userId,
+      reminders: reminders
+        ? {
+            create: reminders.map((r) => ({
+              userId,
+              offsetMinutes: r.offsetMinutes,
+            })),
+          }
+        : undefined,
+    },
   });
   return NextResponse.json(created, { status: 201 });
 }

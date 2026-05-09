@@ -19,8 +19,10 @@ personal_calendar/
 │   ├── components/
 │   │   ├── calendar/        # Feature components (DayView, WeekView, EventDialog...)
 │   │   └── ui/              # shadcn primitives (Button, Dialog, Select...)
-│   ├── lib/                 # Pure logic shared across the app
+│   ├── lib/                 # Pure logic shared across the app (incl. email.ts)
 │   ├── schemas/             # Zod schemas — shared between forms and API routes
+│   ├── emails/              # React Email templates rendered by the reminders cron
+│   ├── scripts/             # Standalone scripts (e.g. send-reminders.ts cron job)
 │   ├── types/               # Ambient TypeScript declarations (e.g., augmenting Session)
 │   └── generated/prisma/    # Auto-generated Prisma client — never hand-edit
 ├── docs/                    # This folder: beginner-friendly docs
@@ -90,7 +92,15 @@ Pure logic, no UI:
 
 ### `src/schemas/`
 
-Zod schemas, one file per entity (`event.ts`, `bigEvent.ts`, `todo.ts`, `category.ts`). Imported by both the React Hook Form on the client and the Zod `.parse()` call on the server — single source of truth for valid shapes.
+Zod schemas, one file per entity (`event.ts`, `bigEvent.ts`, `todo.ts`, `category.ts`, `reminder.ts`). Imported by both the React Hook Form on the client and the Zod `.parse()` call on the server — single source of truth for valid shapes.
+
+### `src/emails/`
+
+React Email components (`ReminderEmail.tsx`, `TodoDigestEmail.tsx`) — JSX templates that `@react-email/render` turns into both HTML and plain-text bodies. The reminders cron job builds an email by passing props to one of these.
+
+### `src/scripts/`
+
+Standalone scripts run outside Next.js. `send-reminders.ts` is the cron entry point — invoked once a minute by Render's Cron Job service via `npm run reminders:cron`. It uses the same `prisma` client and `recurrence.ts` helpers as the API routes.
 
 ### `src/generated/prisma/`
 

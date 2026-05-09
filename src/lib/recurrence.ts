@@ -81,6 +81,34 @@ export function withUntil(
     .replace(/^RRULE:/, "");
 }
 
+/**
+ * Latest possible occurrence start of a series, or null for "no fixed end"
+ * (an open-ended FREQ=... rule with no UNTIL/COUNT).
+ *
+ * Used as a denormalized column on the parent row so the events list query
+ * can skip series that have already finished without expanding them. We
+ * compute it on every write that touches the rrule.
+ *
+ *   - UNTIL → the UNTIL itself (cheap path, no enumeration).
+ *   - COUNT → enumerate to find the Nth occurrence's start (bounded by COUNT,
+ *             so it's safe even on rrules that nominally run forever).
+ *   - neither → null (caller treats as "open-ended").
+ */
+export function computeSeriesEndUtc(
+  rruleStr: string,
+  dtstart: Date,
+): Date | null {
+  const rule = parseRule(rruleStr, dtstart);
+  const opts = rule.origOptions;
+  if (opts.until) return new Date(opts.until);
+  if (opts.count && opts.count > 0) {
+    const all = rule.all((_, i) => i < opts.count!);
+    if (all.length === 0) return null;
+    return all[all.length - 1];
+  }
+  return null;
+}
+
 /** Inverse of occurrenceId. Returns null when the input is not synthetic. */
 export function parseOccurrenceId(
   id: string,

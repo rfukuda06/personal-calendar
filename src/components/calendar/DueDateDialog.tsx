@@ -17,6 +17,7 @@ import {
   toLocalInputValue,
 } from "@/lib/time";
 import { RecurrenceEditor } from "./RecurrenceEditor";
+import { OffsetReminderEditor } from "./ReminderEditor";
 
 export type DueDateModel = {
   id: string;
@@ -27,12 +28,14 @@ export type DueDateModel = {
   rrule: string | null;
   isOccurrence: boolean;
   originalDueAt: string | null;
+  reminders: { offsetMinutes: number }[];
 };
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required").max(200),
   dueAt: z.string().min(1, "Time is required"),
   rrule: z.string().nullable(),
+  reminders: z.array(z.object({ offsetMinutes: z.number().int().min(0) })),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -74,6 +77,7 @@ export function DueDateDialog({
 
   const watchedRule = watch("rrule");
   const watchedDueAt = watch("dueAt");
+  const watchedReminders = watch("reminders");
 
   useEffect(() => {
     if (!open) {
@@ -85,12 +89,15 @@ export function DueDateDialog({
         title: dueDate.title,
         dueAt: toLocalInputValue(new Date(dueDate.dueAt)),
         rrule: dueDate.rrule ?? null,
+        reminders: dueDate.reminders ?? [],
       });
     } else {
+      // Default: one reminder at 6 hours before.
       reset({
         title: "",
         dueAt: defaultDueAtISO,
         rrule: null,
+        reminders: [{ offsetMinutes: 6 * 60 }],
       });
     }
   }, [open, dueDate, defaultDueAtISO, reset]);
@@ -124,6 +131,7 @@ export function DueDateDialog({
         title: values.title,
         dueAt,
         rrule: values.rrule || null,
+        reminders: values.reminders,
       };
       if (isEdit) return api.patch(`/api/due-dates/${seriesId}`, body);
       return api.post("/api/due-dates", body);
@@ -255,6 +263,16 @@ export function DueDateDialog({
             onChange={(rule) => setValue("rrule", rule, { shouldDirty: true })}
             defaultWeekday={defaultWeekday}
             dtstart={watchedDueAt ? fromLocalInputValue(watchedDueAt) : undefined}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label>Reminders</Label>
+          <OffsetReminderEditor
+            value={watchedReminders ?? []}
+            onChange={(next) =>
+              setValue("reminders", next, { shouldDirty: true })
+            }
           />
         </div>
 

@@ -25,11 +25,15 @@ export async function GET(req: Request) {
   const singles = await prisma.bigEvent.findMany({
     where: { userId, rrule: null, date: { gte: from, lt: to } },
     orderBy: { date: "asc" },
+    include: { reminders: { select: { daysBefore: true } } },
   });
 
   const series = await prisma.bigEvent.findMany({
     where: { userId, rrule: { not: null } },
-    include: { exceptions: true },
+    include: {
+      exceptions: true,
+      reminders: { select: { daysBefore: true } },
+    },
   });
 
   type Wire = {
@@ -42,6 +46,7 @@ export async function GET(req: Request) {
     rrule: string | null;
     isOccurrence: boolean;
     originalDate: Date | null;
+    reminders: { daysBefore: number }[];
   };
 
   const expanded: Wire[] = [];
@@ -67,6 +72,7 @@ export async function GET(req: Request) {
         rrule: s.rrule,
         isOccurrence: true,
         originalDate: d,
+        reminders: s.reminders.map((r) => ({ daysBefore: r.daysBefore ?? 0 })),
       });
     }
   }
@@ -82,6 +88,7 @@ export async function GET(req: Request) {
       rrule: null,
       isOccurrence: false,
       originalDate: null,
+      reminders: b.reminders.map((r) => ({ daysBefore: r.daysBefore ?? 0 })),
     })),
     ...expanded,
   ];
@@ -98,8 +105,20 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+  const { reminders, ...bigEventData } = parsed.data;
   const created = await prisma.bigEvent.create({
-    data: { ...parsed.data, userId },
+    data: {
+      ...bigEventData,
+      userId,
+      reminders: reminders
+        ? {
+            create: reminders.map((r) => ({
+              userId,
+              daysBefore: r.daysBefore,
+            })),
+          }
+        : undefined,
+    },
   });
   return NextResponse.json(created, { status: 201 });
 }

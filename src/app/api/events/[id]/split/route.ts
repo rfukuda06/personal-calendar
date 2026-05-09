@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
-import { withUntil } from "@/lib/recurrence";
+import { computeSeriesEndUtc, withUntil } from "@/lib/recurrence";
 
 /**
  * "This event and all following" semantics for a recurring Event.
@@ -81,7 +81,10 @@ export async function POST(req: Request, { params }: Params) {
     } else {
       await tx.event.update({
         where: { id: parent.id },
-        data: { rrule: newParentRrule },
+        data: {
+          rrule: newParentRrule,
+          seriesEndUtc: computeSeriesEndUtc(newParentRrule, parent.startUtc),
+        },
       });
       await tx.eventException.deleteMany({
         where: { eventId: parent.id, originalStartUtc: { gte: splitPoint } },
@@ -95,6 +98,7 @@ export async function POST(req: Request, { params }: Params) {
     const newStart = data.startUtc ?? splitPoint;
     const newEnd =
       data.endUtc ?? new Date(newStart.getTime() + duration);
+    const newRrule = data.rrule === undefined ? parent.rrule : data.rrule;
     return tx.event.create({
       data: {
         userId,
@@ -104,7 +108,8 @@ export async function POST(req: Request, { params }: Params) {
         endUtc: newEnd,
         categoryId:
           data.categoryId === undefined ? parent.categoryId : data.categoryId,
-        rrule: data.rrule === undefined ? parent.rrule : data.rrule,
+        rrule: newRrule,
+        seriesEndUtc: newRrule ? computeSeriesEndUtc(newRrule, newStart) : null,
       },
     });
   });

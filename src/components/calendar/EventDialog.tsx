@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RecurrenceEditor } from "./RecurrenceEditor";
+import { OffsetReminderEditor } from "./ReminderEditor";
 
 type Category = { id: string; name: string; color: string };
 
@@ -28,6 +29,7 @@ export type EventModel = {
   rrule: string | null;
   isOccurrence: boolean;
   originalStartUtc: string | null;
+  reminders: { offsetMinutes: number }[];
 };
 
 export type PickingSide = "start" | "end" | null;
@@ -37,6 +39,7 @@ const formSchema = z.object({
   notes: z.string().max(4000),
   categoryId: z.string(),
   rrule: z.string().nullable(),
+  reminders: z.array(z.object({ offsetMinutes: z.number().int().min(0) })),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -97,13 +100,22 @@ export function EventDialog({
         notes: event.notes ?? "",
         categoryId: event.categoryId ?? "",
         rrule: event.rrule ?? null,
+        reminders: event.reminders ?? [],
       });
     } else {
-      reset({ title: "", notes: "", categoryId: "", rrule: null });
+      // New event: seed with the project default of one 30-minute reminder.
+      reset({
+        title: "",
+        notes: "",
+        categoryId: "",
+        rrule: null,
+        reminders: [{ offsetMinutes: 30 }],
+      });
     }
   }, [open, event, reset]);
 
   const watchedRule = watch("rrule");
+  const watchedReminders = watch("reminders");
   const isOccurrence = !!event?.isOccurrence;
   const [pending, setPending] = useState<PendingAction>(null);
 
@@ -154,6 +166,7 @@ export function EventDialog({
         endUtc,
         categoryId: values.categoryId || null,
         rrule: values.rrule || null,
+        reminders: values.reminders,
       };
       if (isEdit) return api.patch(`/api/events/${event!.seriesId}`, body);
       return api.post("/api/events", body);
@@ -342,6 +355,16 @@ export function EventDialog({
             }
             defaultWeekday={fromUtc(startUtc).weekday - 1}
             dtstart={startUtc}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label>Reminders</Label>
+          <OffsetReminderEditor
+            value={watchedReminders ?? []}
+            onChange={(next) =>
+              setValue("reminders", next, { shouldDirty: true })
+            }
           />
         </div>
 
