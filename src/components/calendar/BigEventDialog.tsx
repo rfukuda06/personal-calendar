@@ -119,10 +119,13 @@ export function BigEventDialog({
       scope: SaveScope;
     }) => {
       if (scope === "occurrence" && bigEvent?.isOccurrence) {
+        // Reminders are series-level (no per-exception reminder model), so
+        // they ride along on the parent even on a "this event" save.
         return api.patch(`/api/big-events/${seriesId}/occurrence`, {
           originalDate: bigEvent.date.slice(0, 10),
           title: values.title,
           notes: values.notes || null,
+          reminders: values.reminders,
         });
       }
       if (scope === "following" && bigEvent?.isOccurrence) {
@@ -133,6 +136,7 @@ export function BigEventDialog({
           notes: values.notes || null,
           date: values.date,
           rrule: values.rrule || null,
+          reminders: values.reminders,
         });
       }
       const body = {

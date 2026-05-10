@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 import { withUntil } from "@/lib/recurrence";
+import { daysBeforeRemindersArraySchema } from "@/schemas/reminder";
 
 /**
  * "This event and all following" semantics for a recurring BigEvent.
@@ -24,6 +25,7 @@ const bodySchema = z.object({
   date: dateOnly.optional(),
   categoryId: z.string().cuid().nullable().optional(),
   rrule: z.string().nullable().optional(),
+  reminders: daysBeforeRemindersArraySchema,
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -72,14 +74,17 @@ export async function POST(req: Request, { params }: Params) {
         categoryId:
           data.categoryId === undefined ? parent.categoryId : data.categoryId,
         rrule: data.rrule === undefined ? parent.rrule : data.rrule,
-        reminders: parent.reminders.length
-          ? {
-              create: parent.reminders.map((r) => ({
-                userId,
-                daysBefore: r.daysBefore,
-              })),
-            }
-          : undefined,
+        reminders: (() => {
+          const list = data.reminders ?? parent.reminders;
+          return list.length
+            ? {
+                create: list.map((r) => ({
+                  userId,
+                  daysBefore: r.daysBefore,
+                })),
+              }
+            : undefined;
+        })(),
       },
     });
   });

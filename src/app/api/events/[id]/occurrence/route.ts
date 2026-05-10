@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
+import { offsetRemindersArraySchema } from "@/schemas/reminder";
 
 /**
  * Per-occurrence overrides for a recurring Event. The parent series is
@@ -29,6 +30,9 @@ const patchSchema = z.object({
   notes: z.string().max(4000).nullable().optional(),
   startUtc: minuteBoundary.optional(),
   endUtc: minuteBoundary.optional(),
+  // Reminders aren't per-exception in the data model; when present they're
+  // applied to the parent series.
+  reminders: offsetRemindersArraySchema,
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -51,7 +55,8 @@ export async function PATCH(req: Request, { params }: Params) {
   if (!(await ownsSeries(userId, id))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  const { originalStartUtc, title, notes, startUtc, endUtc } = parsed.data;
+  const { originalStartUtc, title, notes, startUtc, endUtc, reminders } =
+    parsed.data;
   if (startUtc && endUtc && endUtc <= startUtc) {
     return NextResponse.json(
       { error: "End must be after start" },
@@ -59,26 +64,41 @@ export async function PATCH(req: Request, { params }: Params) {
     );
   }
 
-  const result = await prisma.eventException.upsert({
-    where: {
-      eventId_originalStartUtc: { eventId: id, originalStartUtc },
-    },
-    create: {
-      eventId: id,
-      originalStartUtc,
-      cancelled: false,
-      overrideTitle: title ?? null,
-      overrideNotes: notes ?? null,
-      overrideStartUtc: startUtc ?? null,
-      overrideEndUtc: endUtc ?? null,
-    },
-    update: {
-      cancelled: false,
-      overrideTitle: title ?? null,
-      overrideNotes: notes ?? null,
-      overrideStartUtc: startUtc ?? null,
-      overrideEndUtc: endUtc ?? null,
-    },
+  const result = await prisma.$transaction(async (tx) => {
+    const exception = await tx.eventException.upsert({
+      where: {
+        eventId_originalStartUtc: { eventId: id, originalStartUtc },
+      },
+      create: {
+        eventId: id,
+        originalStartUtc,
+        cancelled: false,
+        overrideTitle: title ?? null,
+        overrideNotes: notes ?? null,
+        overrideStartUtc: startUtc ?? null,
+        overrideEndUtc: endUtc ?? null,
+      },
+      update: {
+        cancelled: false,
+        overrideTitle: title ?? null,
+        overrideNotes: notes ?? null,
+        overrideStartUtc: startUtc ?? null,
+        overrideEndUtc: endUtc ?? null,
+      },
+    });
+    if (reminders !== undefined) {
+      await tx.reminder.deleteMany({ where: { eventId: id } });
+      if (reminders.length > 0) {
+        await tx.reminder.createMany({
+          data: reminders.map((r) => ({
+            userId,
+            eventId: id,
+            offsetMinutes: r.offsetMinutes,
+          })),
+        });
+      }
+    }
+    return exception;
   });
   return NextResponse.json(result);
 }

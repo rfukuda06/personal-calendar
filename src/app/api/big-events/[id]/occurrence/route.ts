@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
+import { daysBeforeRemindersArraySchema } from "@/schemas/reminder";
 
 /**
  * Per-occurrence override for a recurring BigEvent. Mirrors the events
@@ -21,6 +22,7 @@ const patchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   notes: z.string().max(4000).nullable().optional(),
   categoryId: z.string().cuid().nullable().optional(),
+  reminders: daysBeforeRemindersArraySchema,
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -43,23 +45,38 @@ export async function PATCH(req: Request, { params }: Params) {
   if (!(await ownsSeries(userId, id))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  const { originalDate, title, notes, categoryId } = parsed.data;
-  const result = await prisma.bigEventException.upsert({
-    where: { bigEventId_originalDate: { bigEventId: id, originalDate } },
-    create: {
-      bigEventId: id,
-      originalDate,
-      cancelled: false,
-      overrideTitle: title ?? null,
-      overrideNotes: notes ?? null,
-      overrideCategoryId: categoryId ?? null,
-    },
-    update: {
-      cancelled: false,
-      overrideTitle: title ?? null,
-      overrideNotes: notes ?? null,
-      overrideCategoryId: categoryId ?? null,
-    },
+  const { originalDate, title, notes, categoryId, reminders } = parsed.data;
+  const result = await prisma.$transaction(async (tx) => {
+    const exception = await tx.bigEventException.upsert({
+      where: { bigEventId_originalDate: { bigEventId: id, originalDate } },
+      create: {
+        bigEventId: id,
+        originalDate,
+        cancelled: false,
+        overrideTitle: title ?? null,
+        overrideNotes: notes ?? null,
+        overrideCategoryId: categoryId ?? null,
+      },
+      update: {
+        cancelled: false,
+        overrideTitle: title ?? null,
+        overrideNotes: notes ?? null,
+        overrideCategoryId: categoryId ?? null,
+      },
+    });
+    if (reminders !== undefined) {
+      await tx.reminder.deleteMany({ where: { bigEventId: id } });
+      if (reminders.length > 0) {
+        await tx.reminder.createMany({
+          data: reminders.map((r) => ({
+            userId,
+            bigEventId: id,
+            daysBefore: r.daysBefore,
+          })),
+        });
+      }
+    }
+    return exception;
   });
   return NextResponse.json(result);
 }

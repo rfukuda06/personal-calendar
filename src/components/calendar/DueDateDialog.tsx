@@ -116,6 +116,7 @@ export function DueDateDialog({
           originalDueAt: dueDate.originalDueAt,
           title: values.title,
           dueAt,
+          reminders: values.reminders,
         });
       }
       if (scope === "following" && dueDate?.originalDueAt) {
@@ -125,6 +126,7 @@ export function DueDateDialog({
           title: values.title,
           dueAt,
           rrule: values.rrule || null,
+          reminders: values.reminders,
         });
       }
       const body = {

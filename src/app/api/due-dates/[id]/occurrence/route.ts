@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
+import { offsetRemindersArraySchema } from "@/schemas/reminder";
 
 const minuteBoundary = z.coerce.date().transform((d) => {
   const r = new Date(d);
@@ -14,6 +15,7 @@ const patchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   dueAt: minuteBoundary.optional(),
   categoryId: z.string().cuid().nullable().optional(),
+  reminders: offsetRemindersArraySchema,
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -36,25 +38,40 @@ export async function PATCH(req: Request, { params }: Params) {
   if (!(await ownsSeries(userId, id))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  const { originalDueAt, title, dueAt, categoryId } = parsed.data;
-  const result = await prisma.dueDateException.upsert({
-    where: {
-      dueDateId_originalDueAt: { dueDateId: id, originalDueAt },
-    },
-    create: {
-      dueDateId: id,
-      originalDueAt,
-      cancelled: false,
-      overrideTitle: title ?? null,
-      overrideDueAt: dueAt ?? null,
-      overrideCategoryId: categoryId ?? null,
-    },
-    update: {
-      cancelled: false,
-      overrideTitle: title ?? null,
-      overrideDueAt: dueAt ?? null,
-      overrideCategoryId: categoryId ?? null,
-    },
+  const { originalDueAt, title, dueAt, categoryId, reminders } = parsed.data;
+  const result = await prisma.$transaction(async (tx) => {
+    const exception = await tx.dueDateException.upsert({
+      where: {
+        dueDateId_originalDueAt: { dueDateId: id, originalDueAt },
+      },
+      create: {
+        dueDateId: id,
+        originalDueAt,
+        cancelled: false,
+        overrideTitle: title ?? null,
+        overrideDueAt: dueAt ?? null,
+        overrideCategoryId: categoryId ?? null,
+      },
+      update: {
+        cancelled: false,
+        overrideTitle: title ?? null,
+        overrideDueAt: dueAt ?? null,
+        overrideCategoryId: categoryId ?? null,
+      },
+    });
+    if (reminders !== undefined) {
+      await tx.reminder.deleteMany({ where: { dueDateId: id } });
+      if (reminders.length > 0) {
+        await tx.reminder.createMany({
+          data: reminders.map((r) => ({
+            userId,
+            dueDateId: id,
+            offsetMinutes: r.offsetMinutes,
+          })),
+        });
+      }
+    }
+    return exception;
   });
   return NextResponse.json(result);
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 import { computeSeriesEndUtc, withUntil } from "@/lib/recurrence";
+import { offsetRemindersArraySchema } from "@/schemas/reminder";
 
 /**
  * "This event and all following" semantics for a recurring Event.
@@ -37,6 +38,9 @@ const bodySchema = z.object({
   endUtc: minuteBoundary.optional(),
   categoryId: z.string().cuid().nullable().optional(),
   rrule: z.string().nullable().optional(),
+  // When present, the new (split) series uses these reminders instead of
+  // inheriting the parent's. Omit to copy from the parent.
+  reminders: offsetRemindersArraySchema,
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -114,14 +118,19 @@ export async function POST(req: Request, { params }: Params) {
           data.categoryId === undefined ? parent.categoryId : data.categoryId,
         rrule: newRrule,
         seriesEndUtc: newRrule ? computeSeriesEndUtc(newRrule, newStart) : null,
-        reminders: parent.reminders.length
-          ? {
-              create: parent.reminders.map((r) => ({
-                userId,
-                offsetMinutes: r.offsetMinutes,
-              })),
-            }
-          : undefined,
+        reminders: (() => {
+          // User-provided list wins; otherwise copy parent's so the split
+          // series keeps reminding for future occurrences.
+          const list = data.reminders ?? parent.reminders;
+          return list.length
+            ? {
+                create: list.map((r) => ({
+                  userId,
+                  offsetMinutes: r.offsetMinutes,
+                })),
+              }
+            : undefined;
+        })(),
       },
     });
   });

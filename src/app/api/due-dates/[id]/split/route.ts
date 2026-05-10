@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 import { withUntil } from "@/lib/recurrence";
+import { offsetRemindersArraySchema } from "@/schemas/reminder";
 
 const minuteBoundary = z.coerce.date().transform((d) => {
   const r = new Date(d);
@@ -17,6 +18,7 @@ const bodySchema = z.object({
   dueAt: minuteBoundary.optional(),
   categoryId: z.string().cuid().nullable().optional(),
   rrule: z.string().nullable().optional(),
+  reminders: offsetRemindersArraySchema,
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -64,14 +66,17 @@ export async function POST(req: Request, { params }: Params) {
         categoryId:
           data.categoryId === undefined ? parent.categoryId : data.categoryId,
         rrule: data.rrule === undefined ? parent.rrule : data.rrule,
-        reminders: parent.reminders.length
-          ? {
-              create: parent.reminders.map((r) => ({
-                userId,
-                offsetMinutes: r.offsetMinutes,
-              })),
-            }
-          : undefined,
+        reminders: (() => {
+          const list = data.reminders ?? parent.reminders;
+          return list.length
+            ? {
+                create: list.map((r) => ({
+                  userId,
+                  offsetMinutes: r.offsetMinutes,
+                })),
+              }
+            : undefined;
+        })(),
       },
     });
   });

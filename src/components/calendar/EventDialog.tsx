@@ -140,12 +140,16 @@ export function EventDialog({
         throw new Error("End time must be after start time");
       }
       if (scope === "occurrence" && event?.originalStartUtc) {
+        // Reminders live on the parent series — there's no per-exception
+        // reminder model — so an "this event" save still routes the new
+        // reminder list to the parent.
         return api.patch(`/api/events/${event.seriesId}/occurrence`, {
           originalStartUtc: event.originalStartUtc,
           title: values.title,
           notes: values.notes || null,
           startUtc,
           endUtc,
+          reminders: values.reminders,
         });
       }
       if (scope === "following" && event?.originalStartUtc) {
@@ -158,6 +162,7 @@ export function EventDialog({
           endUtc,
           categoryId: values.categoryId || null,
           rrule: values.rrule || null,
+          reminders: values.reminders,
         });
       }
       const body = {
