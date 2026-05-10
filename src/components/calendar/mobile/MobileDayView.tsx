@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { PlusIcon } from "lucide-react";
+import { LogOutIcon, PlusIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import { dayRange, fromUtc, laDay, laTodayISO, TZ } from "@/lib/time";
 import { DaysView } from "../DaysView";
@@ -10,6 +10,7 @@ import { BigEventBar } from "../BigEventBar";
 import { DueDateBar } from "../DueDateBar";
 import { TodoList } from "../TodoList";
 import { EventDialog } from "../EventDialog";
+import { signOutAction } from "@/app/actions/auth";
 
 type Tab = "schedule" | "todos";
 const TAB_KEY = "mobileDayTab";
@@ -125,6 +126,17 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
         >
           →
         </Link>
+        {/* Sign-out lives here now that the wordmark + hamburger are gone.
+            Smaller than prev/next so it reads as secondary. */}
+        <form action={signOutAction}>
+          <button
+            type="submit"
+            aria-label="Sign out"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <LogOutIcon className="size-4" />
+          </button>
+        </form>
       </div>
 
       {/* Tab toggle */}
