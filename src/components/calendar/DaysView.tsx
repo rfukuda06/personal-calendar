@@ -783,7 +783,7 @@ export function DaysView({
               {day.toISODate() === nowISO && (
                 <>
                   <div
-                    className="pointer-events-none absolute left-0 right-0 z-30 h-0.5 bg-black"
+                    className="pointer-events-none absolute left-0 right-0 z-30 h-px bg-black"
                     style={{ top: `${nowTopPx}px`, transform: "translateY(-50%)" }}
                     aria-hidden
                   />
