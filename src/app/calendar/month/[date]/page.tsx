@@ -1,4 +1,6 @@
+import { EventsHydration } from "@/components/calendar/EventsHydration";
 import { MonthView } from "@/components/calendar/MonthView";
+import { laDay, monthGridRange } from "@/lib/time";
 
 export default async function MonthDatePage({
   params,
@@ -6,5 +8,10 @@ export default async function MonthDatePage({
   params: Promise<{ date: string }>;
 }) {
   const { date } = await params;
-  return <MonthView dateISO={date} />;
+  const { start, end } = monthGridRange(laDay(date));
+  return (
+    <EventsHydration start={start} end={end}>
+      <MonthView dateISO={date} />
+    </EventsHydration>
+  );
 }

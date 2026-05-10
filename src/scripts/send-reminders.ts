@@ -51,6 +51,19 @@ function formatLA(d: Date): string {
     .toFormat("h:mm a, ccc LLL d");
 }
 
+/** "9:30 AM - 10:30 AM, Fri May 8" when start and end fall on the same LA
+ *  calendar day; otherwise the full date is included on both sides. Only
+ *  used for timed Events (DueDates have no duration; BigEvents have no time). */
+function formatLARange(start: Date, end: Date): string {
+  const s = DateTime.fromJSDate(start, { zone: "utc" }).setZone(TZ);
+  const e = DateTime.fromJSDate(end, { zone: "utc" }).setZone(TZ);
+  const sameDay = s.toISODate() === e.toISODate();
+  if (sameDay) {
+    return `${s.toFormat("h:mm a")} - ${e.toFormat("h:mm a")}, ${s.toFormat("ccc LLL d")}`;
+  }
+  return `${s.toFormat("h:mm a, ccc LLL d")} - ${e.toFormat("h:mm a, ccc LLL d")}`;
+}
+
 function formatLADate(d: Date): string {
   // Used for BigEvent (no time-of-day). `d` is midnight UTC of an LA date,
   // so reading it back in UTC keeps the calendar day correct.
@@ -149,7 +162,7 @@ async function processEventReminders(now: Date) {
       sendReminderEmail({
         to: r.user.email,
         title: r.event!.title,
-        whenDisplay: formatLA(r.event!.startUtc),
+        whenDisplay: formatLARange(r.event!.startUtc, r.event!.endUtc),
         notes: r.event!.notes,
         eventLink: dayLink(laDateISO(r.event!.startUtc)),
       }),
@@ -189,10 +202,16 @@ async function processRecurringEventReminders(now: Date) {
     const exByOriginal = new Map(
       ev.exceptions.map((e) => [e.originalStartUtc.getTime(), e]),
     );
+    // Each occurrence inherits the parent series' duration unless an
+    // exception overrides the end. Computed once per occurrence so the
+    // formatLARange call below has both ends.
+    const seriesDurationMs = ev.endUtc.getTime() - ev.startUtc.getTime();
     for (const occStart of occStarts) {
       const ex = exByOriginal.get(occStart.getTime());
       if (ex?.cancelled) continue;
       const startUtc = ex?.overrideStartUtc ?? occStart;
+      const endUtc =
+        ex?.overrideEndUtc ?? new Date(startUtc.getTime() + seriesDurationMs);
       const title = ex?.overrideTitle ?? ev.title;
       const notes = ex?.overrideNotes ?? ev.notes;
       for (const r of ev.reminders) {
@@ -210,7 +229,7 @@ async function processRecurringEventReminders(now: Date) {
           sendReminderEmail({
             to: ev.user.email,
             title,
-            whenDisplay: formatLA(startUtc),
+            whenDisplay: formatLARange(startUtc, endUtc),
             notes,
             eventLink: dayLink(laDateISO(startUtc)),
           }),

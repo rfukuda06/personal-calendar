@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { DateTime } from "luxon";
 import { api } from "@/lib/api";
+import { upsertEventInCaches } from "@/lib/eventCache";
 import {
   eventOverlapsDay,
   eventPositionInDay,
@@ -287,8 +288,20 @@ export function DaysView({
     onError: (_err, _vars, ctx) => {
       if (ctx?.previous) qc.setQueryData(queryKey, ctx.previous);
     },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["events"] });
+    onSuccess: (_data, { event, startUtc, endUtc, scope }) => {
+      // Non-recurring whole-series move: propagate the new times to every
+      // cached range so prefetched neighbors stay valid (and pick up/drop
+      // the event correctly if it crossed a range boundary). Recurring
+      // moves change expansion, so fall back to invalidation.
+      if (scope === "series" && !event.rrule) {
+        upsertEventInCaches(qc, {
+          ...event,
+          startUtc: startUtc.toISOString(),
+          endUtc: endUtc.toISOString(),
+        });
+      } else {
+        qc.invalidateQueries({ queryKey: ["events"] });
+      }
     },
   });
 

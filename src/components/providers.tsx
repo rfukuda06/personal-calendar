@@ -8,7 +8,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     () =>
       new QueryClient({
         defaultOptions: {
-          queries: { staleTime: 5 * 60_000, refetchOnWindowFocus: false },
+          // 30-min staleTime: with surgical cache updates on mutations
+          // (see src/lib/eventCache.ts), the cache stays in sync with the
+          // server without polling. A long staleTime keeps prefetched
+          // ranges from refetching on remount when the user navigates back.
+          queries: { staleTime: 30 * 60_000, refetchOnWindowFocus: false },
         },
       }),
   );

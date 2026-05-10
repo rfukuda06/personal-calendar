@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "@/lib/api";
+import { upsertEventInCaches, removeEventFromCaches } from "@/lib/eventCache";
 import { getLastEdited, markEditingFocus } from "@/lib/editingBus";
 import { fromUtc } from "@/lib/time";
 import { XIcon } from "lucide-react";
@@ -168,11 +169,37 @@ export function EventDialog({
         rrule: values.rrule || null,
         reminders: values.reminders,
       };
-      if (isEdit) return api.patch(`/api/events/${event!.seriesId}`, body);
-      return api.post("/api/events", body);
+      if (isEdit) return api.patch<{ id: string }>(`/api/events/${event!.seriesId}`, body);
+      return api.post<{ id: string }>("/api/events", body);
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["events"] });
+    onSuccess: (data, variables) => {
+      // Surgical update is safe only for whole non-recurring events. Anything
+      // touching a recurring series (rrule set on either side, occurrence/
+      // following scope) needs server re-expansion across the visible range,
+      // so fall back to broad invalidation there.
+      const simple =
+        variables.scope === "series" &&
+        !variables.values.rrule &&
+        !event?.rrule;
+      if (simple) {
+        const response = data as { id: string };
+        const updated: EventModel = {
+          id: response.id,
+          seriesId: response.id,
+          title: variables.values.title,
+          notes: variables.values.notes || null,
+          startUtc: startUtc.toISOString(),
+          endUtc: endUtc.toISOString(),
+          categoryId: variables.values.categoryId || null,
+          rrule: null,
+          isOccurrence: false,
+          originalStartUtc: null,
+          reminders: variables.values.reminders,
+        };
+        upsertEventInCaches(qc, updated);
+      } else {
+        qc.invalidateQueries({ queryKey: ["events"] });
+      }
       onOpenChange(false);
     },
   });
@@ -192,8 +219,15 @@ export function EventDialog({
       }
       return api.del(`/api/events/${event!.seriesId}`);
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["events"] });
+    onSuccess: (_data, scope) => {
+      // Whole-series delete (recurring or not) just means "drop every row
+      // sharing this seriesId" — safe to apply across all cached ranges.
+      // Per-occurrence and split deletes alter expansion, so invalidate.
+      if (scope === "series" && event) {
+        removeEventFromCaches(qc, event.seriesId);
+      } else {
+        qc.invalidateQueries({ queryKey: ["events"] });
+      }
       onOpenChange(false);
     },
   });
