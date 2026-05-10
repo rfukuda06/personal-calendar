@@ -95,39 +95,9 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Date bar */}
-      <div className="flex items-center justify-between gap-2 border-b px-3 py-3">
-        <Link
-          href={`/calendar/day/${prevISO}`}
-          aria-label="Previous day"
-          className="inline-flex h-11 w-11 items-center justify-center rounded-md border text-xl hover:bg-accent"
-        >
-          ←
-        </Link>
-        <div className="flex min-w-0 flex-1 flex-col items-center text-center leading-tight">
-          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            {weekday}
-          </span>
-          {isToday ? (
-            <span className="mt-0.5 inline-flex items-center gap-2">
-              <span className="text-xl font-bold">{monthDay}</span>
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                {anchor.toFormat("d")}
-              </span>
-            </span>
-          ) : (
-            <span className="mt-0.5 text-xl font-bold">{monthDay}</span>
-          )}
-        </div>
-        <Link
-          href={`/calendar/day/${nextISO}`}
-          aria-label="Next day"
-          className="inline-flex h-11 w-11 items-center justify-center rounded-md border text-xl hover:bg-accent"
-        >
-          →
-        </Link>
-        {/* Sign-out lives here now that the wordmark + hamburger are gone.
-            Smaller than prev/next so it reads as secondary. */}
+      {/* Date bar. Sign-out left, prev/next together right, date absolutely
+          centered so its position doesn't shift with the side widths. */}
+      <div className="relative flex items-center border-b px-3 py-3">
         <form action={signOutAction}>
           <button
             type="submit"
@@ -137,6 +107,39 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
             <LogOutIcon className="size-4" />
           </button>
         </form>
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="flex flex-col items-center text-center leading-tight">
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              {weekday}
+            </span>
+            {isToday ? (
+              <span className="mt-0.5 inline-flex items-center gap-2">
+                <span className="text-xl font-bold">{monthDay}</span>
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                  {anchor.toFormat("d")}
+                </span>
+              </span>
+            ) : (
+              <span className="mt-0.5 text-xl font-bold">{monthDay}</span>
+            )}
+          </div>
+        </div>
+        <div className="ml-auto flex items-center gap-1">
+          <Link
+            href={`/calendar/day/${prevISO}`}
+            aria-label="Previous day"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-md border text-xl hover:bg-accent"
+          >
+            ←
+          </Link>
+          <Link
+            href={`/calendar/day/${nextISO}`}
+            aria-label="Next day"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-md border text-xl hover:bg-accent"
+          >
+            →
+          </Link>
+        </div>
       </div>
 
       {/* Tab toggle */}
