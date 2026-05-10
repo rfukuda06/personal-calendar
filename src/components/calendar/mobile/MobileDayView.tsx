@@ -167,17 +167,25 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
         </button>
 
         {fabOpen && fabStart && fabEnd && (
-          <EventDialog
-            open={fabOpen}
-            onOpenChange={(v) => setFabOpen(v)}
-            startUtc={fabStart}
-            endUtc={fabEnd}
-            pickingSide={null}
-            onPick={() => {
-              // On mobile we don't support click-to-pick on the grid — the
-              // dialog's start/end inputs are the only entry point.
-            }}
-          />
+          // Fixed overlay so the dialog floats above the page instead of
+          // inflating inline (it's styled h-full max-h-[80vh] for desktop's
+          // column layout, which on mobile would shove the date bar off-screen
+          // and leave iOS with a busted scroll position even after close).
+          <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/50 p-2">
+            <div className="flex h-full w-full max-w-md">
+              <EventDialog
+                open={fabOpen}
+                onOpenChange={(v) => setFabOpen(v)}
+                startUtc={fabStart}
+                endUtc={fabEnd}
+                pickingSide={null}
+                onPick={() => {
+                  // No grid-pick on mobile — the dialog's start/end inputs
+                  // are the only entry point.
+                }}
+              />
+            </div>
+          </div>
         )}
       </div>
     </div>
