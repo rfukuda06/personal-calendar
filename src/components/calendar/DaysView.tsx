@@ -826,6 +826,8 @@ export function DaysView({
                     className="pointer-events-none absolute left-0 right-0 border-2 border-primary bg-primary/15"
                     style={{ top: `${topPx}px`, height: `${heightPx}px` }}
                   >
+                    {readOnly ? null : (
+                    <>
                     <div
                       onPointerDown={(e) => beginDrag("start", day, e)}
                       title="Click or drag to change start time"
@@ -870,6 +872,8 @@ export function DaysView({
                         {fromUtc(draftEnd).toFormat("h:mma")}
                       </span>
                     </div>
+                    </>
+                    )}
                   </div>
                 );
               })()}
@@ -1064,24 +1068,91 @@ export function DaysView({
                 const anchorStyle = anchorBottom
                   ? { bottom: `${gridHeight - topPx}px` }
                   : { top: `${topPx}px` };
+                const dialog = (
+                  <EventDialog
+                    open={dialogOpen}
+                    onOpenChange={(v) => {
+                      if (!v && pickingSide) cancelPicking();
+                      setDialogOpen(v);
+                      if (!v) setEditingEvent(undefined);
+                    }}
+                    event={editingEvent}
+                    startUtc={draftStart}
+                    endUtc={draftEnd}
+                    pickingSide={pickingSide}
+                    onPick={handlePick}
+                  />
+                );
+                if (readOnly) {
+                  // Mobile: render the dialog as a fixed-overlay modal with a
+                  // time-picker strip (start/end, 10-min step). The desktop
+                  // anchor-popover would inflate the day column inline and
+                  // let iOS scroll the page off when the keyboard opens.
+                  function applyHHmm(
+                    side: "start" | "end",
+                    hhmm: string,
+                  ) {
+                    const [hh, mm] = hhmm.split(":").map(Number);
+                    if (Number.isNaN(hh) || Number.isNaN(mm)) return;
+                    const next = day
+                      .set({ hour: hh, minute: mm })
+                      .toUTC()
+                      .toJSDate();
+                    if (side === "start") {
+                      const duration =
+                        draftEnd.getTime() - draftStart.getTime();
+                      setDraftStart(next);
+                      setDraftEnd(new Date(next.getTime() + duration));
+                    } else {
+                      setDraftEnd(next);
+                    }
+                  }
+                  return (
+                    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-2 bg-black/50 p-2">
+                      <div className="w-full max-w-md rounded-lg border bg-background p-3 shadow-2xl">
+                        <div className="flex items-stretch gap-3">
+                          <label className="flex flex-1 flex-col gap-1">
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Start
+                            </span>
+                            <input
+                              type="time"
+                              step={600}
+                              value={fromUtc(draftStart).toFormat("HH:mm")}
+                              onChange={(e) =>
+                                applyHHmm("start", e.target.value)
+                              }
+                              className="rounded-md border px-2 py-2 text-base"
+                            />
+                          </label>
+                          <label className="flex flex-1 flex-col gap-1">
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              End
+                            </span>
+                            <input
+                              type="time"
+                              step={600}
+                              value={fromUtc(draftEnd).toFormat("HH:mm")}
+                              onChange={(e) =>
+                                applyHHmm("end", e.target.value)
+                              }
+                              className="rounded-md border px-2 py-2 text-base"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                      <div className="flex w-full max-w-md min-h-0 flex-1">
+                        {dialog}
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div
                     className={`absolute z-30 w-[340px] ${positionClass}`}
                     style={anchorStyle}
                   >
-                    <EventDialog
-                      open={dialogOpen}
-                      onOpenChange={(v) => {
-                        if (!v && pickingSide) cancelPicking();
-                        setDialogOpen(v);
-                        if (!v) setEditingEvent(undefined);
-                      }}
-                      event={editingEvent}
-                      startUtc={draftStart}
-                      endUtc={draftEnd}
-                      pickingSide={pickingSide}
-                      onPick={handlePick}
-                    />
+                    {dialog}
                   </div>
                 );
               })()}
