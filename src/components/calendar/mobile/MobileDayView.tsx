@@ -160,7 +160,7 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
             rangeEnd={end}
             showDayLabels={false}
             readOnly
-            centerOnNow={isToday}
+            centerOnNow
             allDayRow={
               <BigEventBar
                 days={[anchor]}

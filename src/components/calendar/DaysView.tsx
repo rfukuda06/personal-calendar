@@ -125,9 +125,9 @@ export function DaysView({
    *  Used by mobile, where touch-drag is awkward and event creation goes
    *  through the FAB instead. Tap-to-edit existing events still works. */
   readOnly?: boolean;
-  /** When true, the initial scroll position centers the current time in
-   *  the viewport (instead of the desktop "scroll to bottom after 9am"
-   *  heuristic). Mobile uses this so the now-line is always on-screen. */
+  /** When true, opt into the mobile scroll behavior: persist scrollTop in
+   *  sessionStorage so prev/next day navigation keeps the same view, and
+   *  on first ever load default to "the hour before now at the top." */
   centerOnNow?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
