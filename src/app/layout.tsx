@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Roboto, Roboto_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
@@ -20,6 +20,11 @@ const robotoMono = Roboto_Mono({
 export const metadata: Metadata = {
   title: "Personal Calendar",
   description: "Your calendar, your way.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
