@@ -134,14 +134,26 @@ export function DaysView({
   useEffect(() => {
     if (!scrollRef.current) return;
     const el = scrollRef.current;
-    // Mobile centers the current time in the viewport so the now-line is
-    // always on-screen — the smaller display can't show the whole day.
+    // Mobile: keep scroll position consistent across day-to-day navigation
+    // by stashing scrollTop in sessionStorage and restoring on mount. On
+    // first ever load (no stored value), default to "the hour before now"
+    // at the top of the viewport so the next ~few hours are visible.
     if (centerOnNow) {
-      const nowLa = DateTime.now().setZone("America/Los_Angeles");
-      const nowMin = (nowLa.hour - VISIBLE_START_HOUR) * 60 + nowLa.minute;
-      const nowPx = (nowMin / SLOT_MINUTES) * SLOT_HEIGHT;
-      el.scrollTop = Math.max(0, nowPx - el.clientHeight / 2);
-      return;
+      const SCROLL_KEY = "mobileDayScroll";
+      const stored = sessionStorage.getItem(SCROLL_KEY);
+      const storedNum = stored !== null ? Number(stored) : NaN;
+      if (Number.isFinite(storedNum)) {
+        el.scrollTop = storedNum;
+      } else {
+        const nowHour = DateTime.now().setZone("America/Los_Angeles").hour;
+        const targetHour = Math.max(VISIBLE_START_HOUR, nowHour - 1);
+        el.scrollTop = (targetHour - VISIBLE_START_HOUR) * HOUR_HEIGHT;
+      }
+      const onScroll = () => {
+        sessionStorage.setItem(SCROLL_KEY, String(el.scrollTop));
+      };
+      el.addEventListener("scroll", onScroll, { passive: true });
+      return () => el.removeEventListener("scroll", onScroll);
     }
     // Time-of-day-aware initial scroll:
     //   00:00–06:59 → top of grid (early morning)
