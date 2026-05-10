@@ -110,6 +110,7 @@ export function DaysView({
   allDayRow,
   bottomRow,
   readOnly = false,
+  centerOnNow = false,
 }: {
   days: DateTime[];
   scrollKey: string;
@@ -124,11 +125,24 @@ export function DaysView({
    *  Used by mobile, where touch-drag is awkward and event creation goes
    *  through the FAB instead. Tap-to-edit existing events still works. */
   readOnly?: boolean;
+  /** When true, the initial scroll position centers the current time in
+   *  the viewport (instead of the desktop "scroll to bottom after 9am"
+   *  heuristic). Mobile uses this so the now-line is always on-screen. */
+  centerOnNow?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!scrollRef.current) return;
     const el = scrollRef.current;
+    // Mobile centers the current time in the viewport so the now-line is
+    // always on-screen — the smaller display can't show the whole day.
+    if (centerOnNow) {
+      const nowLa = DateTime.now().setZone("America/Los_Angeles");
+      const nowMin = (nowLa.hour - VISIBLE_START_HOUR) * 60 + nowLa.minute;
+      const nowPx = (nowMin / SLOT_MINUTES) * SLOT_HEIGHT;
+      el.scrollTop = Math.max(0, nowPx - el.clientHeight / 2);
+      return;
+    }
     // Time-of-day-aware initial scroll:
     //   00:00–06:59 → top of grid (early morning)
     //   07:00–08:59 → DEFAULT_SCROLL_HOUR (7 AM)
@@ -166,7 +180,7 @@ export function DaysView({
       el.removeEventListener("scroll", onScroll);
       ro.disconnect();
     };
-  }, [scrollKey]);
+  }, [scrollKey, centerOnNow]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventModel | undefined>();
