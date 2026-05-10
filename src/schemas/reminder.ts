@@ -18,12 +18,12 @@ export const daysBeforeReminderSchema = z.object({
 
 export const offsetRemindersArraySchema = z
   .array(offsetReminderSchema)
-  .max(20)
+  .max(5)
   .optional();
 
 export const daysBeforeRemindersArraySchema = z
   .array(daysBeforeReminderSchema)
-  .max(20)
+  .max(5)
   .optional();
 
 export type OffsetReminder = z.infer<typeof offsetReminderSchema>;

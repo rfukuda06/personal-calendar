@@ -52,6 +52,10 @@ export async function POST(req: Request, { params }: Params) {
 
   const parent = await prisma.event.findFirst({
     where: { id, userId, rrule: { not: null } },
+    // Pull reminders so the new split series inherits them — the parent's
+    // truncated rrule keeps reminders for past occurrences, and the new
+    // series should keep reminding the user for future ones.
+    include: { reminders: { select: { offsetMinutes: true } } },
   });
   if (!parent || !parent.rrule) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -110,6 +114,14 @@ export async function POST(req: Request, { params }: Params) {
           data.categoryId === undefined ? parent.categoryId : data.categoryId,
         rrule: newRrule,
         seriesEndUtc: newRrule ? computeSeriesEndUtc(newRrule, newStart) : null,
+        reminders: parent.reminders.length
+          ? {
+              create: parent.reminders.map((r) => ({
+                userId,
+                offsetMinutes: r.offsetMinutes,
+              })),
+            }
+          : undefined,
       },
     });
   });

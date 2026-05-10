@@ -77,6 +77,10 @@ function NumberInput({
 
 type Unit = "minutes" | "hours" | "days";
 
+// Mirrors src/schemas/reminder.ts. Hard cap on reminders per event so a user
+// can't pile on 50 entries that all email the same address.
+const MAX_REMINDERS = 5;
+
 const UNIT_MINUTES: Record<Unit, number> = {
   minutes: 1,
   hours: 60,
@@ -153,14 +157,16 @@ export function OffsetReminderEditor({
           </div>
         );
       })}
-      <button
-        type="button"
-        onClick={addRow}
-        className="mt-1 flex items-center gap-1 rounded border px-2 py-0.5 text-xs hover:bg-accent"
-      >
-        <PlusIcon className="size-3" />
-        Add reminder
-      </button>
+      {value.length < MAX_REMINDERS && (
+        <button
+          type="button"
+          onClick={addRow}
+          className="mt-1 flex items-center gap-1 rounded border px-2 py-0.5 text-xs hover:bg-accent"
+        >
+          <PlusIcon className="size-3" />
+          Add reminder
+        </button>
+      )}
     </div>
   );
 }
@@ -209,14 +215,16 @@ export function DaysBeforeReminderEditor({
           </button>
         </div>
       ))}
-      <button
-        type="button"
-        onClick={addRow}
-        className="mt-1 flex items-center gap-1 rounded border px-2 py-0.5 text-xs hover:bg-accent"
-      >
-        <PlusIcon className="size-3" />
-        Add reminder
-      </button>
+      {value.length < MAX_REMINDERS && (
+        <button
+          type="button"
+          onClick={addRow}
+          className="mt-1 flex items-center gap-1 rounded border px-2 py-0.5 text-xs hover:bg-accent"
+        >
+          <PlusIcon className="size-3" />
+          Add reminder
+        </button>
+      )}
     </div>
   );
 }

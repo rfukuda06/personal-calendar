@@ -39,6 +39,7 @@ export async function POST(req: Request, { params }: Params) {
 
   const parent = await prisma.bigEvent.findFirst({
     where: { id, userId, rrule: { not: null } },
+    include: { reminders: { select: { daysBefore: true } } },
   });
   if (!parent || !parent.rrule) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -71,6 +72,14 @@ export async function POST(req: Request, { params }: Params) {
         categoryId:
           data.categoryId === undefined ? parent.categoryId : data.categoryId,
         rrule: data.rrule === undefined ? parent.rrule : data.rrule,
+        reminders: parent.reminders.length
+          ? {
+              create: parent.reminders.map((r) => ({
+                userId,
+                daysBefore: r.daysBefore,
+              })),
+            }
+          : undefined,
       },
     });
   });
