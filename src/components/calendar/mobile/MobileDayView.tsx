@@ -181,18 +181,21 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
           <TodoList dateISO={dateISO} variant="full" />
         )}
 
-        {/* FAB. bottom-12 sits above the DueDateBar strip (md cells are
-            min-h-[28px], with padding the strip is ~40px) without floating
-            so high it covers events. */}
-        <button
-          type="button"
-          onClick={openFab}
-          aria-label="New event"
-          className="absolute bottom-12 right-5 inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-black/20 transition-transform active:scale-95"
-          style={{ marginBottom: "env(safe-area-inset-bottom, 0px)" }}
-        >
-          <PlusIcon className="size-6" />
-        </button>
+        {/* FAB. Schedule tab only — the todos tab has its own create flow
+            in TodoList. bottom-12 sits above the DueDateBar strip (md cells
+            are min-h-[28px], with padding the strip is ~40px) without
+            floating so high it covers events. */}
+        {tab === "schedule" && (
+          <button
+            type="button"
+            onClick={openFab}
+            aria-label="New event"
+            className="absolute bottom-12 right-5 inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-black/20 transition-transform active:scale-95"
+            style={{ marginBottom: "env(safe-area-inset-bottom, 0px)" }}
+          >
+            <PlusIcon className="size-6" />
+          </button>
+        )}
 
         {fabOpen && fabStart && fabEnd && (
           // Fixed overlay so the dialog floats above the page instead of
