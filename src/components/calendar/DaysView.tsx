@@ -109,6 +109,7 @@ export function DaysView({
   showDayLabels = true,
   allDayRow,
   bottomRow,
+  readOnly = false,
 }: {
   days: DateTime[];
   scrollKey: string;
@@ -119,6 +120,10 @@ export function DaysView({
   /** Renders below the scrolling hour grid, pinned to the bottom of the
    *  view. Used for the due-date strip. */
   bottomRow?: React.ReactNode;
+  /** When true, disables click-empty-to-create and drag-to-edit gestures.
+   *  Used by mobile, where touch-drag is awkward and event creation goes
+   *  through the FAB instead. Tap-to-edit existing events still works. */
+  readOnly?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -434,6 +439,7 @@ export function DaysView({
   }
 
   function handleSlotClick(day: DateTime, hour: number, minute: number) {
+    if (readOnly) return;
     const clickedDT = day.set({ hour, minute });
     const clickedUtc = clickedDT.toUTC().toJSDate();
 
@@ -501,6 +507,7 @@ export function DaysView({
     day: DateTime,
     e: React.PointerEvent<HTMLButtonElement>,
   ) {
+    if (readOnly) return;
     if (dialogOpen || pendingDrop) return;
     const dayCol = e.currentTarget.closest(
       "[data-day-column]",
@@ -602,6 +609,7 @@ export function DaysView({
     day: DateTime,
     e: React.PointerEvent<HTMLDivElement>,
   ) {
+    if (readOnly) return;
     e.preventDefault();
     e.stopPropagation();
     const dayCol = e.currentTarget.closest(

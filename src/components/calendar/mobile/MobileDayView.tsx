@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PlusIcon } from "lucide-react";
 import { DateTime } from "luxon";
-import { dayRange, laDay, laTodayISO, TZ } from "@/lib/time";
+import { dayRange, fromUtc, laDay, laTodayISO, TZ } from "@/lib/time";
 import { DaysView } from "../DaysView";
 import { BigEventBar } from "../BigEventBar";
 import { DueDateBar } from "../DueDateBar";
@@ -51,13 +51,15 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
   const [fabStart, setFabStart] = useState<Date | null>(null);
   const [fabEnd, setFabEnd] = useState<Date | null>(null);
   function openFab() {
-    // Default: next whole hour in LA, lasting 1 hour. If the next hour falls
-    // on the following day, clamp to start at 8am of the viewed day instead
-    // (avoids creating events outside the day the user is looking at).
+    // Default: next 10-minute mark in LA, lasting 1 hour. If that lands on
+    // the following day, fall back to 8am on the viewed day so we don't
+    // seed an event outside the day the user is looking at.
     const nowLa = DateTime.now().setZone(TZ);
     let s: DateTime;
     if (anchor.hasSame(nowLa, "day")) {
-      s = nowLa.plus({ hours: 1 }).startOf("hour");
+      const minute = Math.ceil(nowLa.minute / 10) * 10;
+      s = nowLa.set({ minute, second: 0, millisecond: 0 });
+      if (minute === 60) s = s.set({ minute: 0 }).plus({ hours: 1 });
       if (!s.hasSame(anchor, "day")) s = anchor.set({ hour: 8 });
     } else {
       s = anchor.set({ hour: 9 });
@@ -66,6 +68,28 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
     setFabStart(s.toUTC().toJSDate());
     setFabEnd(e.toUTC().toJSDate());
     setFabOpen(true);
+  }
+
+  // Time-input helpers. Inputs are <input type="time" step="600">: 10-minute
+  // steps, value formatted "HH:mm" in LA. The form storage stays UTC.
+  function toHHmm(d: Date): string {
+    return fromUtc(d).toFormat("HH:mm");
+  }
+  function setStartHHmm(hhmm: string) {
+    if (!fabStart || !fabEnd) return;
+    const [hh, mm] = hhmm.split(":").map(Number);
+    if (Number.isNaN(hh) || Number.isNaN(mm)) return;
+    const newStart = anchor.set({ hour: hh, minute: mm }).toUTC().toJSDate();
+    // Preserve duration so the user only has to pick start.
+    const duration = fabEnd.getTime() - fabStart.getTime();
+    setFabStart(newStart);
+    setFabEnd(new Date(newStart.getTime() + duration));
+  }
+  function setEndHHmm(hhmm: string) {
+    if (!fabStart) return;
+    const [hh, mm] = hhmm.split(":").map(Number);
+    if (Number.isNaN(hh) || Number.isNaN(mm)) return;
+    setFabEnd(anchor.set({ hour: hh, minute: mm }).toUTC().toJSDate());
   }
 
   return (
@@ -135,6 +159,7 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
             rangeStart={start}
             rangeEnd={end}
             showDayLabels={false}
+            readOnly
             allDayRow={
               <BigEventBar
                 days={[anchor]}
@@ -155,12 +180,13 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
           <TodoList dateISO={dateISO} variant="full" />
         )}
 
-        {/* FAB */}
+        {/* FAB. bottom-24 keeps it clear of the DueDateBar strip pinned to
+            the bottom of the schedule tab. */}
         <button
           type="button"
           onClick={openFab}
           aria-label="New event"
-          className="absolute bottom-5 right-5 inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-black/20 transition-transform active:scale-95"
+          className="absolute bottom-24 right-5 inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-black/20 transition-transform active:scale-95"
           style={{ marginBottom: "env(safe-area-inset-bottom, 0px)" }}
         >
           <PlusIcon className="size-6" />
@@ -168,11 +194,41 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
 
         {fabOpen && fabStart && fabEnd && (
           // Fixed overlay so the dialog floats above the page instead of
-          // inflating inline (it's styled h-full max-h-[80vh] for desktop's
-          // column layout, which on mobile would shove the date bar off-screen
-          // and leave iOS with a busted scroll position even after close).
-          <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/50 p-2">
-            <div className="flex h-full w-full max-w-md">
+          // inflating inline (EventDialog is styled h-full max-h-[80vh] for
+          // desktop's column layout, which on mobile would shove the date
+          // bar off-screen and leave iOS with a busted scroll position).
+          // The time-picker strip sits above the dialog and writes back to
+          // fabStart/fabEnd state, which the dialog re-reads via props.
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-2 bg-black/50 p-2">
+            <div className="w-full max-w-md rounded-lg border bg-background p-3 shadow-2xl">
+              <div className="flex items-stretch gap-3">
+                <label className="flex flex-1 flex-col gap-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Start
+                  </span>
+                  <input
+                    type="time"
+                    step={600}
+                    value={toHHmm(fabStart)}
+                    onChange={(e) => setStartHHmm(e.target.value)}
+                    className="rounded-md border px-2 py-2 text-base"
+                  />
+                </label>
+                <label className="flex flex-1 flex-col gap-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    End
+                  </span>
+                  <input
+                    type="time"
+                    step={600}
+                    value={toHHmm(fabEnd)}
+                    onChange={(e) => setEndHHmm(e.target.value)}
+                    className="rounded-md border px-2 py-2 text-base"
+                  />
+                </label>
+              </div>
+            </div>
+            <div className="flex w-full max-w-md min-h-0 flex-1">
               <EventDialog
                 open={fabOpen}
                 onOpenChange={(v) => setFabOpen(v)}
@@ -180,8 +236,8 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
                 endUtc={fabEnd}
                 pickingSide={null}
                 onPick={() => {
-                  // No grid-pick on mobile — the dialog's start/end inputs
-                  // are the only entry point.
+                  // No grid-pick on mobile — the time-picker strip above is
+                  // the only entry point for editing start/end.
                 }}
               />
             </div>
