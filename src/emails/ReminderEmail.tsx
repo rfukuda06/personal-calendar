@@ -8,13 +8,15 @@ import {
   Text,
 } from "@react-email/components";
 
-// Per-event reminder body. The subject line carries the title and time, so
-// the body just shows notes (if any) and a link that opens the event's day
+// Per-event reminder body. The subject line carries just the title; the body
+// shows the time/day, notes (if any), and a link that opens the event's day
 // view in the calendar.
 export function ReminderEmail({
+  whenDisplay,
   notes,
   eventLink,
 }: {
+  whenDisplay: string;
   notes: string | null;
   eventLink: string;
 }) {
@@ -23,6 +25,11 @@ export function ReminderEmail({
       <Head />
       <Body style={{ fontFamily: "system-ui, sans-serif", padding: "24px" }}>
         <Container style={{ maxWidth: 480 }}>
+          <Section>
+            <Text style={{ marginTop: 0, fontWeight: 600 }}>
+              {whenDisplay}
+            </Text>
+          </Section>
           {notes && (
             <Section>
               <Text style={{ whiteSpace: "pre-wrap", marginTop: 0 }}>
@@ -30,7 +37,7 @@ export function ReminderEmail({
               </Text>
             </Section>
           )}
-          <Section style={{ marginTop: notes ? 24 : 0 }}>
+          <Section style={{ marginTop: 24 }}>
             <Button
               href={eventLink}
               style={{
@@ -42,7 +49,7 @@ export function ReminderEmail({
                 fontSize: 14,
               }}
             >
-              Open in calendar
+              [Open in calendar]
             </Button>
           </Section>
         </Container>

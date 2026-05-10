@@ -31,8 +31,8 @@ export type ReminderEmailInput = {
   to: string;
   title: string;
   // Already-formatted LA-zone string. For timed events we send time-first
-  // ("9:30 AM, Fri May 8"); for BigEvents we send a date-only string. Used
-  // verbatim in the subject; the body intentionally doesn't repeat it.
+  // ("9:30 AM, Fri May 8"); for BigEvents we send a date-only string. Shown
+  // in the body; the subject is just the title.
   whenDisplay: string;
   notes?: string | null;
   eventLink: string; // absolute URL pointing to the day view for this event
@@ -41,12 +41,14 @@ export type ReminderEmailInput = {
 export async function sendReminderEmail(input: ReminderEmailInput) {
   const html = await render(
     ReminderEmail({
+      whenDisplay: input.whenDisplay,
       notes: input.notes ?? null,
       eventLink: input.eventLink,
     }),
   );
   const text = await render(
     ReminderEmail({
+      whenDisplay: input.whenDisplay,
       notes: input.notes ?? null,
       eventLink: input.eventLink,
     }),
@@ -55,7 +57,7 @@ export async function sendReminderEmail(input: ReminderEmailInput) {
   await client().emails.send({
     from: fromAddress(),
     to: input.to,
-    subject: `${input.title} — ${input.whenDisplay}`,
+    subject: input.title,
     html,
     text,
   });
@@ -63,22 +65,18 @@ export async function sendReminderEmail(input: ReminderEmailInput) {
 
 export type TodoDigestEmailInput = {
   to: string;
-  dateDisplay: string; // "Friday, May 8"
   todos: { title: string }[];
 };
 
 export async function sendTodoDigestEmail(input: TodoDigestEmailInput) {
-  const html = await render(
-    TodoDigestEmail({ dateDisplay: input.dateDisplay, todos: input.todos }),
-  );
-  const text = await render(
-    TodoDigestEmail({ dateDisplay: input.dateDisplay, todos: input.todos }),
-    { plainText: true },
-  );
+  const html = await render(TodoDigestEmail({ todos: input.todos }));
+  const text = await render(TodoDigestEmail({ todos: input.todos }), {
+    plainText: true,
+  });
   await client().emails.send({
     from: fromAddress(),
     to: input.to,
-    subject: `You have ${input.todos.length} todo${input.todos.length === 1 ? "" : "s"} today`,
+    subject: `${input.todos.length} todos`,
     html,
     text,
   });

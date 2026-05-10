@@ -123,19 +123,44 @@ export function DaysView({
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!scrollRef.current) return;
+    const el = scrollRef.current;
     // Time-of-day-aware initial scroll:
-    //   22:00–23:59 → bottom of grid (evening)
     //   00:00–06:59 → top of grid (early morning)
-    //   07:00–21:59 → DEFAULT_SCROLL_HOUR (7 AM)
+    //   07:00–08:59 → DEFAULT_SCROLL_HOUR (7 AM)
+    //   09:00–23:59 → bottom of grid
     const nowHour = DateTime.now().setZone("America/Los_Angeles").hour;
-    if (nowHour >= 22) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    } else if (nowHour < 7) {
-      scrollRef.current.scrollTop = 0;
-    } else {
-      scrollRef.current.scrollTop =
-        (DEFAULT_SCROLL_HOUR - VISIBLE_START_HOUR) * HOUR_HEIGHT;
+    if (nowHour < 7) {
+      el.scrollTop = 0;
+      return;
     }
+    if (nowHour < 9) {
+      el.scrollTop = (DEFAULT_SCROLL_HOUR - VISIBLE_START_HOUR) * HOUR_HEIGHT;
+      return;
+    }
+    // The sticky due-date bar lives inside this scroll container and grows
+    // taller after its data loads, which would otherwise cover the last
+    // ~20 min of the grid. Re-pin to the bottom on any size change until
+    // the user scrolls themselves.
+    const pin = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+    pin();
+    let userScrolled = false;
+    const onScroll = () => {
+      if (Math.abs(el.scrollTop - (el.scrollHeight - el.clientHeight)) > 4) {
+        userScrolled = true;
+      }
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    const ro = new ResizeObserver(() => {
+      if (!userScrolled) pin();
+    });
+    ro.observe(el);
+    for (const child of Array.from(el.children)) ro.observe(child);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      ro.disconnect();
+    };
   }, [scrollKey]);
 
   const [dialogOpen, setDialogOpen] = useState(false);

@@ -44,11 +44,12 @@ function inWindow(fireAt: Date, now: Date): WindowDecision {
   return "fire";
 }
 
-function formatLA(d: Date): string {
-  // Time first ("9:30 AM, Fri May 8") to match the subject-line preference.
+/** LA-zone date-only ("Friday, May 8") for a UTC instant. Used for DueDates,
+ *  which carry an exact `dueAt` but display without a time-of-day. */
+function formatLADateInZone(d: Date): string {
   return DateTime.fromJSDate(d, { zone: "utc" })
     .setZone(TZ)
-    .toFormat("h:mm a, ccc LLL d");
+    .toFormat("cccc, LLL d");
 }
 
 /** "9:30 AM - 10:30 AM, Fri May 8" when start and end fall on the same LA
@@ -270,7 +271,7 @@ async function processDueDateReminders(now: Date) {
       sendReminderEmail({
         to: r.user.email,
         title: r.dueDate!.title,
-        whenDisplay: formatLA(r.dueDate!.dueAt),
+        whenDisplay: formatLADateInZone(r.dueDate!.dueAt),
         notes: null,
         eventLink: dayLink(laDateISO(r.dueDate!.dueAt)),
       }),
@@ -325,7 +326,7 @@ async function processRecurringDueDateReminders(now: Date) {
           sendReminderEmail({
             to: dd.user.email,
             title,
-            whenDisplay: formatLA(dueAt),
+            whenDisplay: formatLADateInZone(dueAt),
             notes: null,
             eventLink: dayLink(laDateISO(dueAt)),
           }),
@@ -506,7 +507,6 @@ async function processTodoDigest(now: Date) {
     try {
       await sendTodoDigestEmail({
         to: u.email,
-        dateDisplay: laNow.toFormat("cccc, LLL d"),
         todos,
       });
     } catch (err) {
