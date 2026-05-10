@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { CalendarHeader } from "@/components/calendar/CalendarHeader";
+import { HeaderSwitch } from "@/components/calendar/HeaderSwitch";
 
 export default async function CalendarLayout({
   children,
@@ -9,7 +9,7 @@ export default async function CalendarLayout({
   const session = await auth();
   return (
     <div className="flex h-screen flex-col">
-      <CalendarHeader email={session?.user?.email} />
+      <HeaderSwitch email={session?.user?.email} />
       <main className="min-h-0 flex-1">{children}</main>
     </div>
   );

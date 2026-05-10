@@ -35,7 +35,14 @@ type Todo = {
  *
  * Create + edit happen inline in the rail itself — no modal dialog.
  */
-export function TodoList({ dateISO }: { dateISO: string }) {
+export function TodoList({
+  dateISO,
+  variant = "rail",
+}: {
+  dateISO: string;
+  variant?: "rail" | "full";
+}) {
+  const isFull = variant === "full";
   const qc = useQueryClient();
 
   const { data: todos = [] } = useQuery({
@@ -235,17 +242,37 @@ export function TodoList({ dateISO }: { dateISO: string }) {
   }, [newTitle, newRrule, editingId]);
 
   return (
-    <aside className="relative flex w-72 shrink-0 flex-col border-l bg-muted/20">
-      <div className="border-b px-3 py-1.5">
+    <aside
+      className={
+        isFull
+          ? "relative flex h-full w-full flex-col bg-background"
+          : "relative flex w-72 shrink-0 flex-col border-l bg-muted/20"
+      }
+    >
+      <div
+        className={
+          isFull ? "border-b px-4 py-3" : "border-b px-3 py-1.5"
+        }
+      >
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h2
+            className={
+              isFull
+                ? "text-sm font-semibold uppercase tracking-wide text-muted-foreground"
+                : "text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+            }
+          >
             Todos
           </h2>
           <button
             type="button"
             onClick={submitNew}
             disabled={!newTitle.trim() || create.isPending}
-            className="rounded bg-black px-2 py-0.5 text-xs text-white hover:opacity-90 disabled:opacity-50"
+            className={
+              isFull
+                ? "rounded bg-black px-3 py-1.5 text-sm text-white hover:opacity-90 disabled:opacity-50"
+                : "rounded bg-black px-2 py-0.5 text-xs text-white hover:opacity-90 disabled:opacity-50"
+            }
           >
             Create
           </button>
@@ -303,7 +330,9 @@ export function TodoList({ dateISO }: { dateISO: string }) {
                   />
                 ) : (
                   <div
-                    className="group flex items-center gap-2 rounded px-2 py-1 text-white"
+                    className={`group flex items-center gap-2 rounded text-white ${
+                      isFull ? "px-3 py-2.5" : "px-2 py-1"
+                    }`}
                     style={{ backgroundColor: TODO_COLOR }}
                   >
                     <input
@@ -319,13 +348,15 @@ export function TodoList({ dateISO }: { dateISO: string }) {
                         // focused, which would silently disable ←/→/T/D/W/M.
                         e.target.blur();
                       }}
-                      className="size-5 shrink-0 cursor-pointer accent-white"
+                      className={`shrink-0 cursor-pointer accent-white ${
+                        isFull ? "size-6" : "size-5"
+                      }`}
                     />
                     <div className="min-w-0 flex-1">
                       <div
-                        className={`truncate text-sm ${
-                          completed ? "opacity-70 line-through" : ""
-                        }`}
+                        className={`truncate ${
+                          isFull ? "text-base" : "text-sm"
+                        } ${completed ? "opacity-70 line-through" : ""}`}
                       >
                         {t.title}
                       </div>

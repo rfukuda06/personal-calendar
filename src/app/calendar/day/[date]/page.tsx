@@ -1,4 +1,4 @@
-import { DayView } from "@/components/calendar/DayView";
+import { DayViewSwitch } from "@/components/calendar/DayViewSwitch";
 import { EventsHydration } from "@/components/calendar/EventsHydration";
 import { dayRange, laDay } from "@/lib/time";
 
@@ -11,7 +11,7 @@ export default async function DayDatePage({
   const { start, end } = dayRange(laDay(date));
   return (
     <EventsHydration start={start} end={end}>
-      <DayView dateISO={date} />
+      <DayViewSwitch dateISO={date} />
     </EventsHydration>
   );
 }
