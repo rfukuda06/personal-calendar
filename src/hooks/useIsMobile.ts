@@ -1,22 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 const MOBILE_QUERY = "(max-width: 767px)";
 
+function subscribe(onChange: () => void) {
+  const mq = window.matchMedia(MOBILE_QUERY);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+function getSnapshot(): boolean {
+  return window.matchMedia(MOBILE_QUERY).matches;
+}
+
+function getServerSnapshot(): boolean {
+  return false;
+}
+
 /**
- * True when the viewport is phone-sized. SSR-safe: returns false on the
- * server and on the very first client render, then updates after mount.
- * That brief flash is acceptable per the project owner.
+ * True when the viewport is phone-sized. SSR-safe via useSyncExternalStore:
+ * server snapshot is always false, the client subscribes to matchMedia after
+ * hydration. Brief desktop flash on mobile is acceptable per the project owner.
  */
 export function useIsMobile(): boolean {
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia(MOBILE_QUERY);
-    setIsMobile(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-  return isMobile;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

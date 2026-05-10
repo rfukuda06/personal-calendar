@@ -37,7 +37,10 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
   // sticks across day navigation but doesn't break SSR.
   useEffect(() => {
     const stored = sessionStorage.getItem(TAB_KEY);
-    if (stored === "schedule" || stored === "todos") setTab(stored);
+    if (stored === "schedule" || stored === "todos") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTab(stored);
+    }
   }, []);
   function pickTab(next: Tab) {
     setTab(next);
