@@ -24,15 +24,23 @@ function isEventsKey(key: QueryKey): key is EventsKey {
   );
 }
 
-// All ranges and event times are ISO strings, which sort lexicographically
-// the same way they sort chronologically — so string compare is fine.
+// Range keys come from Luxon (`toISO()` → "...−07:00") and event times come
+// from Date (`toISOString()` → "...Z"). Those two forms don't sort the same
+// way as strings, so comparisons that look correct can flip on dates that
+// straddle a UTC-offset boundary (e.g., a 23:00 LA event whose UTC string
+// starts with the next day). Parse both sides into instants and compare
+// numerically.
 function overlaps(
   eventStart: string,
   eventEnd: string,
   rangeStart: string,
   rangeEnd: string,
 ) {
-  return eventStart < rangeEnd && eventEnd > rangeStart;
+  const es = Date.parse(eventStart);
+  const ee = Date.parse(eventEnd);
+  const rs = Date.parse(rangeStart);
+  const re = Date.parse(rangeEnd);
+  return es < re && ee > rs;
 }
 
 export function upsertEventInCaches(qc: QueryClient, event: EventModel) {
@@ -42,8 +50,8 @@ export function upsertEventInCaches(qc: QueryClient, event: EventModel) {
     const [, rangeStart, rangeEnd] = key;
     const without = data.filter((e) => e.id !== event.id);
     const next = overlaps(event.startUtc, event.endUtc, rangeStart, rangeEnd)
-      ? [...without, event].sort((a, b) =>
-          a.startUtc.localeCompare(b.startUtc),
+      ? [...without, event].sort(
+          (a, b) => Date.parse(a.startUtc) - Date.parse(b.startUtc),
         )
       : without;
     qc.setQueryData<EventModel[]>(key, next);
