@@ -24,6 +24,7 @@ import {
   type PickingSide,
 } from "./EventDialog";
 import { announceEditing, subscribeEditing } from "@/lib/editingBus";
+import { MobileScrollRail } from "./mobile/MobileScrollRail";
 
 const MIN_MS = 10 * 60 * 1000;
 
@@ -711,9 +712,10 @@ export function DaysView({
 
   return (
     <div className="flex h-full flex-col">
+      <div className="relative min-h-0 flex-1">
       <div
         ref={scrollRef}
-        className="flex-1 overflow-auto"
+        className="absolute inset-0 overflow-auto"
       >
         {/* Sticky block containing the day labels and (optionally) the
             all-day row. Kept together so both stay pinned at the top. */}
@@ -1188,6 +1190,8 @@ export function DaysView({
         {bottomRow && (
           <div className="sticky bottom-0 z-10 bg-background">{bottomRow}</div>
         )}
+      </div>
+      {readOnly && <MobileScrollRail scrollRef={scrollRef} />}
       </div>
       {pendingDrop && (
         <div
