@@ -45,15 +45,32 @@ function inWindow(fireAt: Date, now: Date): WindowDecision {
 }
 
 function formatLA(d: Date): string {
+  // Time first ("9:30 AM, Fri May 8") to match the subject-line preference.
   return DateTime.fromJSDate(d, { zone: "utc" })
     .setZone(TZ)
-    .toFormat("ccc LLL d, h:mm a");
+    .toFormat("h:mm a, ccc LLL d");
 }
 
 function formatLADate(d: Date): string {
   // Used for BigEvent (no time-of-day). `d` is midnight UTC of an LA date,
   // so reading it back in UTC keeps the calendar day correct.
   return DateTime.fromJSDate(d, { zone: "utc" }).toFormat("cccc, LLL d");
+}
+
+/** LA-zone calendar day (YYYY-MM-DD) of a UTC instant. Used to build the
+ *  day-view link in reminder emails. */
+function laDateISO(d: Date): string {
+  return DateTime.fromJSDate(d, { zone: "utc" }).setZone(TZ).toISODate()!;
+}
+
+/** BigEvent.date is stored as midnight UTC of an LA day; format directly in
+ *  UTC to recover the YYYY-MM-DD without a timezone shift. */
+function bigEventDateISO(d: Date): string {
+  return DateTime.fromJSDate(d, { zone: "utc" }).toISODate()!;
+}
+
+function dayLink(dateISO: string): string {
+  return `${appUrl()}/calendar/day/${dateISO}`;
 }
 
 /** UTC fire time for a BigEvent reminder: 22:00 LA on (eventDate - daysBefore). */
@@ -134,7 +151,7 @@ async function processEventReminders(now: Date) {
         title: r.event!.title,
         whenDisplay: formatLA(r.event!.startUtc),
         notes: r.event!.notes,
-        eventLink: `${appUrl()}/calendar/week`,
+        eventLink: dayLink(laDateISO(r.event!.startUtc)),
       }),
     );
   }
@@ -195,7 +212,7 @@ async function processRecurringEventReminders(now: Date) {
             title,
             whenDisplay: formatLA(startUtc),
             notes,
-            eventLink: `${appUrl()}/calendar/week`,
+            eventLink: dayLink(laDateISO(startUtc)),
           }),
         );
       }
@@ -236,7 +253,7 @@ async function processDueDateReminders(now: Date) {
         title: r.dueDate!.title,
         whenDisplay: formatLA(r.dueDate!.dueAt),
         notes: null,
-        eventLink: `${appUrl()}/calendar/week`,
+        eventLink: dayLink(laDateISO(r.dueDate!.dueAt)),
       }),
     );
   }
@@ -291,7 +308,7 @@ async function processRecurringDueDateReminders(now: Date) {
             title,
             whenDisplay: formatLA(dueAt),
             notes: null,
-            eventLink: `${appUrl()}/calendar/week`,
+            eventLink: dayLink(laDateISO(dueAt)),
           }),
         );
       }
@@ -331,7 +348,7 @@ async function processBigEventReminders(now: Date) {
         title: r.bigEvent!.title,
         whenDisplay: formatLADate(r.bigEvent!.date),
         notes: r.bigEvent!.notes,
-        eventLink: `${appUrl()}/calendar/month`,
+        eventLink: dayLink(bigEventDateISO(r.bigEvent!.date)),
       }),
     );
   }
@@ -391,7 +408,7 @@ async function processRecurringBigEventReminders(now: Date) {
             title,
             whenDisplay: formatLADate(occ),
             notes,
-            eventLink: `${appUrl()}/calendar/month`,
+            eventLink: dayLink(bigEventDateISO(occ)),
           }),
         );
       }

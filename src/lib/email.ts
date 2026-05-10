@@ -30,24 +30,23 @@ function appUrl(): string {
 export type ReminderEmailInput = {
   to: string;
   title: string;
-  whenDisplay: string; // already-formatted LA-zone string ("Fri May 8, 9:30 AM")
+  // Already-formatted LA-zone string. For timed events we send time-first
+  // ("9:30 AM, Fri May 8"); for BigEvents we send a date-only string. Used
+  // verbatim in the subject; the body intentionally doesn't repeat it.
+  whenDisplay: string;
   notes?: string | null;
-  eventLink: string; // absolute URL
+  eventLink: string; // absolute URL pointing to the day view for this event
 };
 
 export async function sendReminderEmail(input: ReminderEmailInput) {
   const html = await render(
     ReminderEmail({
-      title: input.title,
-      whenDisplay: input.whenDisplay,
       notes: input.notes ?? null,
       eventLink: input.eventLink,
     }),
   );
   const text = await render(
     ReminderEmail({
-      title: input.title,
-      whenDisplay: input.whenDisplay,
       notes: input.notes ?? null,
       eventLink: input.eventLink,
     }),
@@ -56,7 +55,7 @@ export async function sendReminderEmail(input: ReminderEmailInput) {
   await client().emails.send({
     from: fromAddress(),
     to: input.to,
-    subject: `Reminder: ${input.title} — ${input.whenDisplay}`,
+    subject: `${input.title} — ${input.whenDisplay}`,
     html,
     text,
   });

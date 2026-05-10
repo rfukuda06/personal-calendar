@@ -3,41 +3,34 @@ import {
   Button,
   Container,
   Head,
-  Heading,
   Html,
-  Preview,
   Section,
   Text,
 } from "@react-email/components";
 
-// Single-event reminder. Rendered to both HTML and plain-text via
-// @react-email/render — keep markup simple so the plain-text fallback reads
-// well too.
+// Per-event reminder body. The subject line carries the title and time, so
+// the body just shows notes (if any) and a link that opens the event's day
+// view in the calendar.
 export function ReminderEmail({
-  title,
-  whenDisplay,
   notes,
   eventLink,
 }: {
-  title: string;
-  whenDisplay: string;
   notes: string | null;
   eventLink: string;
 }) {
   return (
     <Html>
       <Head />
-      <Preview>{`${title} — ${whenDisplay}`}</Preview>
       <Body style={{ fontFamily: "system-ui, sans-serif", padding: "24px" }}>
         <Container style={{ maxWidth: 480 }}>
-          <Heading style={{ fontSize: 20, marginBottom: 8 }}>{title}</Heading>
-          <Text style={{ marginTop: 0, color: "#444" }}>{whenDisplay}</Text>
           {notes && (
-            <Section style={{ marginTop: 16 }}>
-              <Text style={{ whiteSpace: "pre-wrap" }}>{notes}</Text>
+            <Section>
+              <Text style={{ whiteSpace: "pre-wrap", marginTop: 0 }}>
+                {notes}
+              </Text>
             </Section>
           )}
-          <Section style={{ marginTop: 24 }}>
+          <Section style={{ marginTop: notes ? 24 : 0 }}>
             <Button
               href={eventLink}
               style={{
