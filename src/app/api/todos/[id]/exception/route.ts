@@ -52,10 +52,13 @@ export async function PATCH(req: Request, { params }: Params) {
       overrideTitle: title ?? null,
       overrideNotes: notes ?? null,
     },
+    // Only write override columns the request actually included so a
+    // partial PATCH (e.g. title only) doesn't reset the prior notes
+    // override.
     update: {
       cancelled: false,
-      overrideTitle: title ?? null,
-      overrideNotes: notes ?? null,
+      ...(title !== undefined && { overrideTitle: title }),
+      ...(notes !== undefined && { overrideNotes: notes }),
     },
   });
   return NextResponse.json(result);

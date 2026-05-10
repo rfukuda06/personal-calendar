@@ -78,12 +78,17 @@ export async function PATCH(req: Request, { params }: Params) {
         overrideStartUtc: startUtc ?? null,
         overrideEndUtc: endUtc ?? null,
       },
+      // Only write override columns the request actually included.
+      // Coercing absent fields to null here would clobber prior overrides
+      // on the next save (the EventDialog currently sends all fields, but
+      // any future caller that PATCHes a subset would otherwise reset
+      // unrelated overrides).
       update: {
         cancelled: false,
-        overrideTitle: title ?? null,
-        overrideNotes: notes ?? null,
-        overrideStartUtc: startUtc ?? null,
-        overrideEndUtc: endUtc ?? null,
+        ...(title !== undefined && { overrideTitle: title }),
+        ...(notes !== undefined && { overrideNotes: notes }),
+        ...(startUtc !== undefined && { overrideStartUtc: startUtc }),
+        ...(endUtc !== undefined && { overrideEndUtc: endUtc }),
       },
     });
     if (reminders !== undefined) {

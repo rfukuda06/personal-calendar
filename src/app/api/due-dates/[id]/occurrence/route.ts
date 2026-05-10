@@ -52,11 +52,15 @@ export async function PATCH(req: Request, { params }: Params) {
         overrideDueAt: dueAt ?? null,
         overrideCategoryId: categoryId ?? null,
       },
+      // Only write override columns the request actually included.
+      // Coercing absent fields to null here would clobber prior overrides
+      // on the next save (e.g., editing the title shouldn't reset the
+      // dueAt or category override the user set last time).
       update: {
         cancelled: false,
-        overrideTitle: title ?? null,
-        overrideDueAt: dueAt ?? null,
-        overrideCategoryId: categoryId ?? null,
+        ...(title !== undefined && { overrideTitle: title }),
+        ...(dueAt !== undefined && { overrideDueAt: dueAt }),
+        ...(categoryId !== undefined && { overrideCategoryId: categoryId }),
       },
     });
     if (reminders !== undefined) {
