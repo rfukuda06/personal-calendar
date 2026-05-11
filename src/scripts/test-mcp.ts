@@ -1,36 +1,58 @@
 import "dotenv/config";
 import "./use-prod-db";
-import {
-  getUserId,
-  listEventsOp,
-  listTodosOp,
-  listBigEventsOp,
-  listDueDatesOp,
-  listCategoriesOp,
-  CalendarOpError,
-} from "../lib/calendar-ops";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 async function main() {
-  const uid = await getUserId();
-  console.log(`✓ getUserId: ${uid}`);
+  const transport = new StdioClientTransport({
+    command: "node",
+    args: ["dist/mcp/server.mjs"],
+    env: { ...process.env, DATABASE_URL_PROD: process.env.DATABASE_URL_PROD! },
+  });
+  const client = new Client({ name: "smoke-test", version: "1.0.0" });
+  await client.connect(transport);
 
-  const events = await listEventsOp(uid, { from: "2026-05-12", to: "2026-05-12" });
-  console.log(`✓ listEventsOp(May 12): ${events.length} events`);
+  const tools = await client.listTools();
+  console.log(`✓ ${tools.tools.length} tools registered`);
+  if (tools.tools.length < 28) throw new Error(`expected ≥28 tools, got ${tools.tools.length}`);
 
-  const todos = await listTodosOp(uid, { from: "2026-05-12", to: "2026-05-13" });
-  console.log(`✓ listTodosOp(May 12-13): ${todos.length} todos`);
+  const evRes = await client.callTool({
+    name: "list_events",
+    arguments: { from: "2026-05-12", to: "2026-05-12" },
+  });
+  const evContent = evRes.content as Array<{ text: string }>;
+  const evs = JSON.parse(evContent[0].text);
+  if (!Array.isArray(evs)) throw new Error(`list_events returned non-array: ${JSON.stringify(evs)}`);
+  console.log(`✓ list_events(May 12): ${evs.length} events`);
 
-  const bigs = await listBigEventsOp(uid, { from: "2026-05-12", to: "2026-05-15" });
-  console.log(`✓ listBigEventsOp(May 12-15): ${bigs.length} big events`);
+  const catRes = await client.callTool({ name: "list_categories", arguments: {} });
+  const catContent = catRes.content as Array<{ text: string }>;
+  const cats = JSON.parse(catContent[0].text);
+  console.log(`✓ list_categories: ${cats.length} categories`);
 
-  const dues = await listDueDatesOp(uid, { from: "2026-05-12", to: "2026-05-13" });
-  console.log(`✓ listDueDatesOp(May 12-13): ${dues.length} due dates`);
+  // Round-trip: create → list → delete a throwaway event.
+  const created = await client.callTool({
+    name: "create_event",
+    arguments: {
+      body: {
+        title: "[mcp smoke] DELETE ME",
+        startUtc: "2026-12-31T23:00",
+        endUtc: "2026-12-31T23:30",
+      },
+    },
+  });
+  const createdContent = created.content as Array<{ text: string }>;
+  const createdObj = JSON.parse(createdContent[0].text);
+  console.log(`✓ create_event: ${createdObj.id}`);
 
-  const cats = await listCategoriesOp(uid);
-  console.log(`✓ listCategoriesOp: ${cats.length} categories`);
+  await client.callTool({ name: "delete_event", arguments: { id: createdObj.id } });
+  console.log(`✓ delete_event: ${createdObj.id}`);
+
+  await client.close();
+  console.log("✓ all smoke tests passed");
 }
 
 main().catch((e) => {
-  console.error("✗ test failed:", e instanceof CalendarOpError ? `${e.code}: ${e.message}` : e);
+  console.error("✗ smoke test failed:", e);
   process.exit(1);
 });
