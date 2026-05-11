@@ -10,12 +10,16 @@
     "db:migrate": "prisma migrate deploy",
     "reminders:cron": "tsx src/scripts/send-reminders.ts",
     "cal": "tsx -r dotenv/config src/scripts/cal.ts",
-    "cal:prod": "tsx -r dotenv/config -r ./src/scripts/use-prod-db.ts src/scripts/cal.ts"
+    "cal:prod": "tsx -r dotenv/config -r ./src/scripts/use-prod-db.ts src/scripts/cal.ts",
+    "mcp:build": "esbuild src/mcp/server.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/mcp/server.mjs --external:@prisma/client --external:@prisma/adapter-pg --external:./src/generated/prisma/client",
+    "mcp:dev": "tsx -r dotenv/config -r ./src/scripts/use-prod-db.ts src/mcp/server.ts",
+    "mcp:test": "npm run mcp:build && tsx -r dotenv/config -r ./src/scripts/use-prod-db.ts src/scripts/test-mcp.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
     "@base-ui/react": "^1.4.1",
     "@hookform/resolvers": "^5.2.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@react-email/components": "^1.0.12",
@@ -44,6 +48,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
+    "esbuild": "^0.28.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "prisma": "^7.8.0",
