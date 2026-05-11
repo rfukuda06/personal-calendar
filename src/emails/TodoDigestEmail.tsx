@@ -3,7 +3,6 @@ import {
   Container,
   Head,
   Html,
-  Preview,
 } from "@react-email/components";
 
 export function TodoDigestEmail({
@@ -14,7 +13,6 @@ export function TodoDigestEmail({
   return (
     <Html>
       <Head />
-      <Preview>{`${todos.length} todos`}</Preview>
       <Body style={{ fontFamily: "system-ui, sans-serif", padding: "24px" }}>
         <Container style={{ maxWidth: 480 }}>
           <ul style={{ paddingLeft: 20, marginTop: 0 }}>
