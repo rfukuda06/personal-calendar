@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "prisma migrate deploy",
-    "reminders:cron": "tsx src/scripts/send-reminders.ts"
+    "reminders:cron": "tsx src/scripts/send-reminders.ts",
+    "cal": "tsx -r dotenv/config src/scripts/cal.ts",
+    "cal:prod": "tsx -r dotenv/config -r ./src/scripts/use-prod-db.ts src/scripts/cal.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
