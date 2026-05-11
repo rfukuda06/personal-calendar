@@ -24,7 +24,6 @@ import {
   type PickingSide,
 } from "./EventDialog";
 import { announceEditing, subscribeEditing } from "@/lib/editingBus";
-import { MobileScrollRail } from "./mobile/MobileScrollRail";
 
 const MIN_MS = 10 * 60 * 1000;
 
@@ -1191,7 +1190,6 @@ export function DaysView({
           <div className="sticky bottom-0 z-10 bg-background">{bottomRow}</div>
         )}
       </div>
-      {readOnly && <MobileScrollRail scrollRef={scrollRef} />}
       </div>
       {pendingDrop && (
         <div

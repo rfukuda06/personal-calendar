@@ -97,30 +97,30 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
     <div className="flex h-full flex-col">
       {/* Date bar. Sign-out left, prev/next together right, date absolutely
           centered so its position doesn't shift with the side widths. */}
-      <div className="relative flex items-center border-b px-3 py-3">
+      <div className="relative flex items-center border-b px-3 py-1.5">
         <form action={signOutAction}>
           <button
             type="submit"
             aria-label="Sign out"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
           >
-            <LogOutIcon className="size-4" />
+            <LogOutIcon className="size-3.5" />
           </button>
         </form>
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="flex flex-col items-center text-center leading-tight">
-            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               {weekday}
             </span>
             {isToday ? (
-              <span className="mt-0.5 inline-flex items-center gap-2">
-                <span className="text-xl font-bold">{monthDay}</span>
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+              <span className="mt-0.5 inline-flex items-center gap-1.5">
+                <span className="text-base font-bold">{monthDay}</span>
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                   {anchor.toFormat("d")}
                 </span>
               </span>
             ) : (
-              <span className="mt-0.5 text-xl font-bold">{monthDay}</span>
+              <span className="mt-0.5 text-base font-bold">{monthDay}</span>
             )}
           </div>
         </div>
@@ -128,14 +128,14 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
           <Link
             href={`/calendar/day/${prevISO}`}
             aria-label="Previous day"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-md border text-xl hover:bg-accent"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-base hover:bg-accent"
           >
             ←
           </Link>
           <Link
             href={`/calendar/day/${nextISO}`}
             aria-label="Next day"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-md border text-xl hover:bg-accent"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-base hover:bg-accent"
           >
             →
           </Link>
