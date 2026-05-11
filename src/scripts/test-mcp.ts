@@ -1,15 +1,33 @@
 import "dotenv/config";
 import "./use-prod-db";
-import { getUserId, listEventsOp, CalendarOpError } from "../lib/calendar-ops";
+import {
+  getUserId,
+  listEventsOp,
+  listTodosOp,
+  listBigEventsOp,
+  listDueDatesOp,
+  listCategoriesOp,
+  CalendarOpError,
+} from "../lib/calendar-ops";
 
 async function main() {
   const uid = await getUserId();
   console.log(`✓ getUserId: ${uid}`);
 
   const events = await listEventsOp(uid, { from: "2026-05-12", to: "2026-05-12" });
-  if (!Array.isArray(events)) throw new Error(`listEventsOp returned non-array: ${JSON.stringify(events)}`);
   console.log(`✓ listEventsOp(May 12): ${events.length} events`);
-  for (const e of events) console.log(`  - ${e.title} ${e.startUtc} → ${e.endUtc}`);
+
+  const todos = await listTodosOp(uid, { from: "2026-05-12", to: "2026-05-13" });
+  console.log(`✓ listTodosOp(May 12-13): ${todos.length} todos`);
+
+  const bigs = await listBigEventsOp(uid, { from: "2026-05-12", to: "2026-05-15" });
+  console.log(`✓ listBigEventsOp(May 12-15): ${bigs.length} big events`);
+
+  const dues = await listDueDatesOp(uid, { from: "2026-05-12", to: "2026-05-13" });
+  console.log(`✓ listDueDatesOp(May 12-13): ${dues.length} due dates`);
+
+  const cats = await listCategoriesOp(uid);
+  console.log(`✓ listCategoriesOp: ${cats.length} categories`);
 }
 
 main().catch((e) => {
