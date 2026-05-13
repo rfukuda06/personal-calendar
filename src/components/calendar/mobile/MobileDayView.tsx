@@ -128,14 +128,14 @@ export function MobileDayView({ dateISO }: { dateISO: string }) {
           <Link
             href={`/calendar/day/${prevISO}`}
             aria-label="Previous day"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-base hover:bg-accent"
+            className="inline-flex h-8 w-12 items-center justify-center rounded-md border text-base hover:bg-accent"
           >
             ←
           </Link>
           <Link
             href={`/calendar/day/${nextISO}`}
             aria-label="Next day"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-base hover:bg-accent"
+            className="inline-flex h-8 w-12 items-center justify-center rounded-md border text-base hover:bg-accent"
           >
             →
           </Link>
