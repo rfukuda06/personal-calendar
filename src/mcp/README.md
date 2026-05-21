@@ -10,7 +10,10 @@ claude mcp add-json --scope user calendar "$(cat <<'JSON'
 {
   "command": "node",
   "args": ["/Users/renzofukuda/Desktop/Repos/personal_calendar/dist/mcp/server.mjs"],
-  "env": {"DATABASE_URL_PROD": "<prod neon connection string>"}
+  "env": {
+    "DATABASE_URL": "<prod neon connection string>",
+    "USER_ID": "<resolved user id — skip with DB lookup if unset>"
+  }
 }
 JSON
 )"

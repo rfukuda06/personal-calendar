@@ -12,6 +12,7 @@
     "cal": "tsx -r dotenv/config src/scripts/cal.ts",
     "cal:prod": "tsx -r dotenv/config -r ./src/scripts/use-prod-db.ts src/scripts/cal.ts",
     "mcp:build": "esbuild src/mcp/server.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/mcp/server.mjs --external:@prisma/client --external:@prisma/adapter-pg --external:./src/generated/prisma/client",
+    "cli:build": "esbuild src/scripts/cal.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/cli/cal.mjs --main-fields=module,main --external:@prisma/client --external:@prisma/adapter-pg --external:./src/generated/prisma/client --banner:js=\"import{createRequire as _cr}from'module';const require=_cr(import.meta.url);\"",
     "mcp:dev": "tsx -r dotenv/config -r ./src/scripts/use-prod-db.ts src/mcp/server.ts",
     "mcp:test": "npm run mcp:build && tsx -r dotenv/config -r ./src/scripts/use-prod-db.ts src/scripts/test-mcp.ts"
   },

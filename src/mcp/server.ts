@@ -49,6 +49,7 @@ const server = new McpServer({ name: "calendar", version: "1.0.0" });
 function wrap<T>(fn: () => Promise<T>) {
   return async () => {
     try {
+      await ensureUserId();
       const result = await fn();
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (e) {
@@ -66,7 +67,20 @@ function wrap<T>(fn: () => Promise<T>) {
   };
 }
 
+// Lazily resolve the user id on first tool call so the MCP stdio handshake
+// isn't blocked on a DB roundtrip. `USER_ID` env var bypasses the DB entirely.
 let userId: string;
+let userIdPromise: Promise<string> | null = null;
+function ensureUserId(): Promise<string> {
+  if (userId) return Promise.resolve(userId);
+  if (!userIdPromise) {
+    userIdPromise = (async () => {
+      userId = process.env.USER_ID ?? (await getUserId());
+      return userId;
+    })();
+  }
+  return userIdPromise;
+}
 
 // ---------------------------------------------------------------------------
 // Read tools
@@ -397,7 +411,6 @@ server.registerTool(
 // ---------------------------------------------------------------------------
 
 async function main() {
-  userId = await getUserId();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

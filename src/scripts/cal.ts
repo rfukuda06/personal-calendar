@@ -114,6 +114,7 @@ const HELP = `
 Calendar CLI. See src/mcp/README.md — this CLI is a fallback; primary access is via the calendar MCP server.
 
 Reads: list-events, list-todos, list-big-events, list-due-dates, list-reminders, list-categories
+       list-all (events+todos+big-events+due-dates in one shot, same --from/--to)
 Writes (JSON stdin): create-event, update-event <id>, create-todo, update-todo <id>,
        create-big-event, update-big-event <id>, create-due-date, update-due-date <id>,
        add-reminder, set-occurrence
@@ -144,6 +145,19 @@ async function main() {
         to: flags.named.to as string | undefined,
       });
       return out(r);
+    }
+    case "list-all": {
+      const range = {
+        from: flags.named.from as string | undefined,
+        to: flags.named.to as string | undefined,
+      };
+      const [events, todos, bigEvents, dueDates] = await Promise.all([
+        listEventsOp(userId, range),
+        listTodosOp(userId, range),
+        listBigEventsOp(userId, range),
+        listDueDatesOp(userId, range),
+      ]);
+      return out({ events, todos, bigEvents, dueDates });
     }
     case "create-event":
       return out(await createEventOp(userId, await readStdinJson()));

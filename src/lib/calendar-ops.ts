@@ -56,6 +56,10 @@ export function parseDateOnly(s: string): Date {
 /**
  * Default list window: today (LA) through +30 days. Accepts optional
  * YYYY-MM-DD overrides. Returns UTC Date pair matching the schema columns.
+ *
+ * Use this for columns that store full UTC instants (Event.startUtc,
+ * DueDate.dueAt). For columns that store date-only labels as midnight UTC
+ * (@db.Date — Todo.dueDate, BigEvent.date), use resolveDateRange instead.
  */
 export function resolveRange(fromIso?: string, toIso?: string): { from: Date; to: Date } {
   const today = DateTime.now().setZone(TZ).startOf("day");
@@ -67,6 +71,31 @@ export function resolveRange(fromIso?: string, toIso?: string): { from: Date; to
     throw new CalendarOpError("bad-range", "--from/--to must be YYYY-MM-DD");
   }
   return { from: from.toUTC().toJSDate(), to: to.toUTC().toJSDate() };
+}
+
+/**
+ * Date-only range resolver for `@db.Date` columns (Todo.dueDate,
+ * BigEvent.date). Those columns store a calendar-day *label* as midnight UTC,
+ * not an instant in LA. Comparing them against `resolveRange`'s LA→UTC bounds
+ * shifts every single-day query forward by 7-8 hours, which excludes the
+ * day's actual rows and includes the next day's instead.
+ *
+ * This variant treats `--from`/`--to` as date labels: from = midnight UTC of
+ * the from date, to = midnight UTC of (to date + 1 day) (exclusive upper).
+ * Defaults match resolveRange (today LA through +30 days).
+ */
+export function resolveDateRange(fromIso?: string, toIso?: string): { from: Date; to: Date } {
+  const today = DateTime.now().setZone(TZ).startOf("day");
+  const f = fromIso ?? today.toISODate()!;
+  const t = toIso ?? today.plus({ days: 30 }).toISODate()!;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f) || !/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+    throw new CalendarOpError("bad-range", "--from/--to must be YYYY-MM-DD");
+  }
+  const to = DateTime.fromISO(t, { zone: "utc" }).startOf("day").plus({ days: 1 });
+  return {
+    from: new Date(`${f}T00:00:00.000Z`),
+    to: to.toJSDate(),
+  };
 }
 
 export function parseOccurrenceDatetime(s: string): Date {
@@ -243,7 +272,7 @@ export async function listTodosOp(
   userId: string,
   params: { from?: string; to?: string },
 ): Promise<TodoOccurrence[]> {
-  const { from, to } = resolveRange(params.from, params.to);
+  const { from, to } = resolveDateRange(params.from, params.to);
   const rows = await prisma.todo.findMany({
     where: { userId },
     include: { exceptions: true, completions: true },
@@ -381,7 +410,7 @@ export async function listBigEventsOp(
   userId: string,
   params: { from?: string; to?: string },
 ): Promise<BigEventOccurrence[]> {
-  const { from, to } = resolveRange(params.from, params.to);
+  const { from, to } = resolveDateRange(params.from, params.to);
   const rows = await prisma.bigEvent.findMany({
     where: { userId },
     include: { exceptions: true, category: true },
