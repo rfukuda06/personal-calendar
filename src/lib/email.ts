@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import { render } from "@react-email/render";
 import { ReminderEmail } from "@/emails/ReminderEmail";
 import { TodoDigestEmail } from "@/emails/TodoDigestEmail";
+import type { DigestTodos } from "@/lib/todos";
 
 // Lazy singleton — the cron script and any future API path that wants to
 // send a one-off email both go through here. Using a getter avoids crashing
@@ -63,11 +64,7 @@ export async function sendReminderEmail(input: ReminderEmailInput) {
   });
 }
 
-export type TodoDigestEmailInput = {
-  to: string;
-  today: { title: string }[];
-  rolledOver: { title: string; from: string }[];
-};
+export type TodoDigestEmailInput = DigestTodos & { to: string };
 
 export async function sendTodoDigestEmail(input: TodoDigestEmailInput) {
   const { today, rolledOver } = input;
@@ -78,7 +75,7 @@ export async function sendTodoDigestEmail(input: TodoDigestEmailInput) {
   await client().emails.send({
     from: fromAddress(),
     to: input.to,
-    subject: `${count} todos`,
+    subject: `${count} todo${count === 1 ? "" : "s"}`,
     html,
     text,
   });

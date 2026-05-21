@@ -58,6 +58,8 @@ Short decision records for the big choices. Each entry: **what** we chose, **wha
 **Alternatives:** A nightly job that updates stale `dueDate`s to today; store a `rolloverEnabled` flag per todo.
 **Why:** Read-time is stateless and always correct — no background job to fail. Keeping `dueDate` immutable preserves the record of what the todo was originally for, which matters for any future reporting ("how often did I miss my Monday todos?").
 
+**Follow-on (2026-05-21):** `resolveTodosForDay` in `src/lib/todos.ts` is the canonical implementation. Both `GET /api/todos` and the noon-LA digest go through it; any future caller (mobile API, weekly summary, etc.) should as well, rather than re-implementing the rollover query.
+
 ## 10. Zod schemas shared between client and server
 
 **Chose:** One Zod schema per entity in `src/schemas/`, imported by both the React Hook Form validator and the API route handler.

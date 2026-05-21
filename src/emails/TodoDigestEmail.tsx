@@ -4,14 +4,9 @@ import {
   Head,
   Html,
 } from "@react-email/components";
+import type { DigestTodos } from "@/lib/todos";
 
-export function TodoDigestEmail({
-  today,
-  rolledOver,
-}: {
-  today: { title: string }[];
-  rolledOver: { title: string; from: string }[];
-}) {
+export function TodoDigestEmail({ today, rolledOver }: DigestTodos) {
   return (
     <Html>
       <Head />
