@@ -28,6 +28,7 @@ import {
   sendTodoDigestEmail,
   appUrl,
 } from "../lib/email";
+import { resolveTodosForDay, partitionForDigest } from "../lib/todos";
 
 const WINDOW_MS = 90 * 1000;
 // Anything older than this is "stale" — we'd rather skip than spam after the
@@ -457,45 +458,9 @@ async function processTodoDigest(now: Date) {
     });
     if (already) continue;
 
-    // Non-recurring todos due today, not completed.
-    const singleTodos = await prisma.todo.findMany({
-      where: {
-        userId: u.id,
-        rrule: null,
-        dueDate: todayUtcMidnight,
-        completedAt: null,
-      },
-      select: { title: true },
-    });
-
-    // Recurring todos whose RRULE hits today, with no completion or
-    // cancellation override for today.
-    const recurringTodos = await prisma.todo.findMany({
-      where: { userId: u.id, rrule: { not: null } },
-      include: {
-        completions: { where: { occurrenceDate: todayUtcMidnight } },
-        exceptions: { where: { occurrenceDate: todayUtcMidnight } },
-      },
-    });
-    const recurringHits: { title: string }[] = [];
-    for (const t of recurringTodos) {
-      if (!t.rrule) continue;
-      const tomorrow = new Date(todayUtcMidnight.getTime() + 86_400_000);
-      const hits = expandOccurrences(
-        t.rrule,
-        t.dueDate,
-        todayUtcMidnight,
-        tomorrow,
-      );
-      if (hits.length === 0) continue;
-      const ex = t.exceptions[0];
-      if (ex?.cancelled) continue;
-      if (t.completions.length > 0) continue;
-      recurringHits.push({ title: ex?.overrideTitle ?? t.title });
-    }
-
-    const todos = [...singleTodos, ...recurringHits];
-    if (todos.length === 0) continue;
+    const items = await resolveTodosForDay(u.id, todayUtcMidnight);
+    const { today, rolledOver } = partitionForDigest(items, todayUtcMidnight);
+    if (today.length === 0 && rolledOver.length === 0) continue;
 
     try {
       await prisma.todoDigestSend.create({
@@ -505,10 +470,7 @@ async function processTodoDigest(now: Date) {
       continue; // raced with another run
     }
     try {
-      await sendTodoDigestEmail({
-        to: u.email,
-        todos,
-      });
+      await sendTodoDigestEmail({ to: u.email, today, rolledOver });
     } catch (err) {
       console.error(`todo digest send failed for ${u.id}:`, err);
       await prisma.todoDigestSend
