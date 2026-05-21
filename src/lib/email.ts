@@ -65,18 +65,20 @@ export async function sendReminderEmail(input: ReminderEmailInput) {
 
 export type TodoDigestEmailInput = {
   to: string;
-  todos: { title: string }[];
+  today: { title: string }[];
+  rolledOver: { title: string; from: string }[];
 };
 
 export async function sendTodoDigestEmail(input: TodoDigestEmailInput) {
-  const html = await render(TodoDigestEmail({ todos: input.todos }));
-  const text = await render(TodoDigestEmail({ todos: input.todos }), {
-    plainText: true,
-  });
+  const { today, rolledOver } = input;
+  const props = { today, rolledOver };
+  const html = await render(TodoDigestEmail(props));
+  const text = await render(TodoDigestEmail(props), { plainText: true });
+  const count = today.length + rolledOver.length;
   await client().emails.send({
     from: fromAddress(),
     to: input.to,
-    subject: `${input.todos.length} todos`,
+    subject: `${count} todos`,
     html,
     text,
   });
