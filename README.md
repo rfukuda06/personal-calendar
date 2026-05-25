@@ -4,7 +4,7 @@ A faster, more customizable alternative to Google Calendar. Available as a web a
 
 [personal-calendar-ur0a.onrender.com](https://personal-calendar-ur0a.onrender.com). Sign in with Google to get your own private calendar.
 
-<img src="docs/screenshots/day-view.png" width="759" alt="Day view">
+<img src="docs/screenshots/day-view.png" width="820" alt="Day view">
 
 ## Why I built it
 
