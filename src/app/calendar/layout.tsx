@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { HeaderSwitch } from "@/components/calendar/HeaderSwitch";
 
@@ -7,6 +8,9 @@ export default async function CalendarLayout({
   children: React.ReactNode;
 }) {
   const session = await auth();
+  if (!session) {
+    redirect("/signin");
+  }
   return (
     <div className="flex h-[100dvh] flex-col">
       <HeaderSwitch email={session?.user?.email} />
