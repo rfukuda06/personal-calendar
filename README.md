@@ -23,9 +23,9 @@ So I built my own version. Plus mobile, a Claude Code CLI, and email reminders.
 | ----------------------------- | ---------------------------------------------- |
 | Day, week, and month views    | Daily to-do lists with automatic rollover      |
 | Timed events                  | Keyboard shortcuts for navigation and editing  |
-| All-day events                | Daily to-do digest notification                |
+| All-day events                | Snap-to-cursor event creation                  |
 | Recurring items               | Terminal CLI and Claude Code (MCP) integration |
-| Email reminders               | Snap-to-cursor event creation                  |
+| Email reminders               | Daily to-do digest notification                |
 | Categories with custom colors | Due dates                                      |
 | Google sign-in (multi-user)   | Mobile web version                             |
 
