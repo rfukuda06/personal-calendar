@@ -2,9 +2,9 @@
 
 A faster, more customizable alternative to Google Calendar. Available as a web app, mobile site, terminal CLI, and Claude Code (MCP) integration.
 
-Live at [personal-calendar-ur0a.onrender.com](https://personal-calendar-ur0a.onrender.com). Sign in with Google to get your own private calendar.
+[personal-calendar-ur0a.onrender.com](https://personal-calendar-ur0a.onrender.com). Sign in with Google to get your own private calendar.
 
-<img src="docs/screenshots/day-view.png" width="660" alt="Day view">
+<img src="docs/screenshots/day-view.png" width="759" alt="Day view">
 
 ## Why I built it
 
@@ -35,11 +35,11 @@ _Day view was shown previously._
 
 **Week view**
 
-<img src="docs/screenshots/week-view.png" width="660" alt="Week view">
+<img src="docs/screenshots/week-view.png" width="759" alt="Week view">
 
 **Month view**
 
-<img src="docs/screenshots/month-view.png" width="660" alt="Month view">
+<img src="docs/screenshots/month-view.png" width="759" alt="Month view">
 
 ## Mobile
 
