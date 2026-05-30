@@ -1,7 +1,7 @@
 /**
- * Reminder dispatcher. Designed to run once per minute as a Render Cron Job
+ * Reminder dispatcher. Designed to run every 5 minutes as a Render Cron Job
  * (`npm run reminders:cron`). Picks up every reminder whose fire time falls
- * in the past minute, sends the email via Resend, and writes a ReminderSend
+ * in the current window, sends the email via Resend, and writes a ReminderSend
  * row keyed by (reminderId, occurrenceKey) so a duplicate run can't double-
  * send. Same idea for the 12pm-LA todo digest, gated by TodoDigestSend.
  *
@@ -11,11 +11,14 @@
  * fire times are derived per-user-LA because the time-of-day is fixed at
  * 22:00 local.
  *
- * Window semantics: we look at reminders whose computed fireAt sits in the
- * half-open interval [now - WINDOW_MS, now]. If the cron job is delayed by
- * more than WINDOW_MS we miss those reminders — that's the trade-off for
- * a polling design. WINDOW_MS is generous (90s) so a slightly slow tick
- * still catches everything.
+ * Window semantics: we fire reminders whose computed fireAt sits in the
+ * interval [now - WINDOW_MS, now]. WINDOW_MS must stay >= the cron period
+ * (see reminder-window.ts) or reminders that fall between ticks are silently
+ * dropped; the ReminderSend unique key dedupes the overlap between ticks.
+ *
+ * Quiet hours: the job exits before touching the DB from midnight to 6am LA,
+ * so Neon's compute stays suspended overnight. Reminders that would fire in
+ * that window are dropped, not replayed at 6am.
  */
 
 import "dotenv/config";
@@ -29,21 +32,12 @@ import {
   appUrl,
 } from "../lib/email";
 import { resolveTodosForDay, partitionForDigest } from "../lib/todos";
-
-const WINDOW_MS = 90 * 1000;
-// Anything older than this is "stale" — we'd rather skip than spam after the
-// job recovered from a long outage. Matches the plan's stale-window guard.
-const STALE_MS = 60 * 60 * 1000;
-
-type WindowDecision = "fire" | "skip" | "stale";
-
-function inWindow(fireAt: Date, now: Date): WindowDecision {
-  const delta = now.getTime() - fireAt.getTime();
-  if (delta < 0) return "skip"; // future
-  if (delta > STALE_MS) return "stale";
-  if (delta > WINDOW_MS) return "skip"; // past but outside our minute
-  return "fire";
-}
+import {
+  inWindow,
+  isQuietHour,
+  isDigestWindow,
+  WINDOW_MS,
+} from "../lib/reminder-window";
 
 /** LA-zone date-only ("Friday, May 8") for a UTC instant. Used for DueDates,
  *  which carry an exact `dueAt` but display without a time-of-day. */
@@ -438,10 +432,11 @@ async function processRecurringBigEventReminders(now: Date) {
 }
 
 async function processTodoDigest(now: Date) {
-  // Fire only when the LA wall-clock is in the 12:00 minute. Cron runs every
-  // minute so we'll hit this exactly once per day per tick that matches.
+  // Fire once when the LA wall-clock crosses noon. Window-based (see
+  // isDigestWindow) so a delayed/skipped tick still triggers it; TodoDigestSend
+  // dedupes the day so the window overlap can't double-send.
+  if (!isDigestWindow(now)) return;
   const laNow = DateTime.fromJSDate(now, { zone: "utc" }).setZone(TZ);
-  if (laNow.hour !== 12 || laNow.minute !== 0) return;
   const todayLaIso = laNow.toISODate()!;
   const todayUtcMidnight = new Date(`${todayLaIso}T00:00:00.000Z`);
 
@@ -485,6 +480,12 @@ async function processTodoDigest(now: Date) {
 async function main() {
   const now = new Date();
   console.log(`[reminders] tick at ${now.toISOString()}`);
+  // Quiet hours: bail before any query so Neon's compute stays suspended
+  // overnight. Returns before prisma opens a connection (it connects lazily).
+  if (isQuietHour(now)) {
+    console.log(`[reminders] overnight quiet window — skipping (no DB touched)`);
+    return;
+  }
   await processEventReminders(now);
   await processRecurringEventReminders(now);
   await processDueDateReminders(now);
