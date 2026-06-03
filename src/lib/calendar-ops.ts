@@ -172,7 +172,7 @@ export async function listEventsOp(
         startUtc: start.toISOString(),
         endUtc: end.toISOString(),
         rrule: ev.rrule,
-        categoryId: ev.categoryId,
+        categoryId: ex?.overrideCategoryId ?? ev.categoryId,
         categoryName: ev.category?.name ?? null,
       });
     }
@@ -685,6 +685,7 @@ const eventExceptionInputSchema = z
     overrideNotes: z.string().max(4000).nullable().optional(),
     overrideStartUtc: z.coerce.date().optional(),
     overrideEndUtc: z.coerce.date().optional(),
+    overrideCategoryId: z.string().cuid().nullable().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, "empty override");
 
