@@ -1,7 +1,7 @@
 /**
  * Reminder dispatcher. Designed to run every 5 minutes as a Render Cron Job
  * (`npm run reminders:cron`). Picks up every reminder whose fire time falls
- * in the current window, sends the email via Resend, and writes a ReminderSend
+ * in the current window, sends the email via Gmail SMTP, and writes a ReminderSend
  * row keyed by (reminderId, occurrenceKey) so a duplicate run can't double-
  * send. Same idea for the 12pm-LA todo digest, gated by TodoDigestSend.
  *

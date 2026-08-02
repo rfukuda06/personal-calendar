@@ -7,8 +7,8 @@ import { prisma } from "../lib/db";
 
 async function main() {
   console.log("ENV:");
-  console.log("  RESEND_API_KEY:", process.env.RESEND_API_KEY ? "(set)" : "(missing)");
-  console.log("  EMAIL_FROM:", process.env.EMAIL_FROM ?? "(missing)");
+  console.log("  GMAIL_USER:", process.env.GMAIL_USER ?? "(missing)");
+  console.log("  GMAIL_APP_PASSWORD:", process.env.GMAIL_APP_PASSWORD ? "(set)" : "(missing)");
   console.log("  APP_URL:", process.env.APP_URL ?? "(missing)");
   console.log();
 

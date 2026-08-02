@@ -78,13 +78,13 @@ We reuse the same Zod schema on the client form and the server API route — one
 
 Data-fetching and caching for React. Instead of juggling `useState` + `useEffect` + loading flags for every API call, you write `useQuery({ queryKey: ['events', range], queryFn: fetchEvents })` and get caching, loading/error states, refetching, and cache invalidation after mutations for free.
 
-## Resend
+## Nodemailer
 
-Transactional email service. We hand it a `from`, `to`, subject, and HTML body and it delivers the email. Used by the reminders cron job (`src/scripts/send-reminders.ts`) to send "30 minutes before your event" reminders and the daily 12pm todo digest. Requires a verified sending domain so that Gmail/Outlook trust the messages.
+The email transport. We hand it a `from`, `to`, subject, and HTML/text body and it delivers the message over Gmail's SMTP server, authenticated with a Gmail **App Password** (`GMAIL_USER` / `GMAIL_APP_PASSWORD`). Used by the reminders cron job (`src/scripts/send-reminders.ts`) to send "30 minutes before your event" reminders and the daily 12pm todo digest. Because it sends from a real Gmail account there's no custom sending domain to keep verified — Gmail handles SPF/DKIM. Nodemailer rejects on SMTP errors, so failed sends surface instead of being swallowed (`src/lib/email-result.ts` also guards against a send that reached zero recipients).
 
 ## React Email
 
-A small library that lets us write email templates as React components (`src/emails/`) and render them to both HTML and plain-text. We pair it with Resend so the cron job can build a styled email and a text fallback from the same source.
+A small library that lets us write email templates as React components (`src/emails/`) and render them to both HTML and plain-text. We pair it with Nodemailer so the cron job can build a styled email and a text fallback from the same source.
 
 ## tsx
 

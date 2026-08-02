@@ -1,27 +1,37 @@
-import { Resend } from "resend";
+import nodemailer, { type Transporter } from "nodemailer";
 import { render } from "@react-email/render";
 import { ReminderEmail } from "@/emails/ReminderEmail";
 import { TodoDigestEmail } from "@/emails/TodoDigestEmail";
 import type { DigestTodos } from "@/lib/todos";
+import { ensureSent } from "@/lib/email-result";
 
-// Lazy singleton — the cron script and any future API path that wants to
-// send a one-off email both go through here. Using a getter avoids crashing
-// at import time when RESEND_API_KEY is missing in environments that don't
-// actually send (e.g. unit tests, local dev where notifications are off).
-let _resend: Resend | null = null;
-function client(): Resend {
-  if (!_resend) {
-    const key = process.env.RESEND_API_KEY;
-    if (!key) throw new Error("RESEND_API_KEY is not set");
-    _resend = new Resend(key);
+// Lazy singleton transporter. We send through Gmail SMTP using an App Password
+// (requires 2-Step Verification on the account). There is no custom sending
+// domain, so nothing can fall out of DNS/verification the way the old Resend
+// setup did — see DESIGN_DECISIONS.md #13. The getter avoids building the
+// transport at import time when credentials are absent (unit tests, or local
+// dev with notifications off).
+let _transporter: Transporter | null = null;
+function transporter(): Transporter {
+  if (!_transporter) {
+    const user = process.env.GMAIL_USER;
+    const pass = process.env.GMAIL_APP_PASSWORD;
+    if (!user) throw new Error("GMAIL_USER is not set");
+    if (!pass) throw new Error("GMAIL_APP_PASSWORD is not set");
+    _transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user, pass },
+    });
   }
-  return _resend;
+  return _transporter;
 }
 
 function fromAddress(): string {
-  const from = process.env.EMAIL_FROM;
-  if (!from) throw new Error("EMAIL_FROM is not set");
-  return from;
+  const user = process.env.GMAIL_USER;
+  if (!user) throw new Error("GMAIL_USER is not set");
+  // Gmail rewrites any From that isn't the authenticated account, so the address
+  // must be GMAIL_USER; we only dress it with a display name.
+  return `Personal Calendar <${user}>`;
 }
 
 function appUrl(): string {
@@ -55,13 +65,14 @@ export async function sendReminderEmail(input: ReminderEmailInput) {
     }),
     { plainText: true },
   );
-  await client().emails.send({
+  const info = await transporter().sendMail({
     from: fromAddress(),
     to: input.to,
     subject: input.title,
     html,
     text,
   });
+  ensureSent(info);
 }
 
 export type TodoDigestEmailInput = DigestTodos & { to: string };
@@ -72,13 +83,14 @@ export async function sendTodoDigestEmail(input: TodoDigestEmailInput) {
   const html = await render(TodoDigestEmail(props));
   const text = await render(TodoDigestEmail(props), { plainText: true });
   const count = today.length + rolledOver.length;
-  await client().emails.send({
+  const info = await transporter().sendMail({
     from: fromAddress(),
     to: input.to,
     subject: `${count} todo${count === 1 ? "" : "s"}`,
     html,
     text,
   });
+  ensureSent(info);
 }
 
 export { appUrl };
