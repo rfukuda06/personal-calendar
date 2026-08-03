@@ -102,3 +102,11 @@ Short decision records for the big choices. Each entry: **what** we chose, **wha
 **Alternatives:** Reuse `offsetMinutes` and let the UI emit `daysBefore * 1440` minutes. Or let the user pick the time-of-day too.
 
 **Why:** BigEvents are all-day items with no inherent start time, so "N minutes before" has no anchor. Fixing the time-of-day at 22:00 LA matches the "evening reminder for tomorrow's birthday" mental model and keeps the UI to a single integer. Storing `daysBefore` directly avoids arithmetic ambiguity in the cron and makes the rows self-describing on inspection.
+
+## 15. Per-occurrence category override for events (`EventException.overrideCategoryId`)
+
+**Chose:** A single occurrence of a recurring event can carry its own category, stored as `EventException.overrideCategoryId`. Read-time expansion applies `override ?? series` for category exactly as it already does for title, notes, and time.
+
+**Alternatives:** Keep category as a series-only attribute (the status quo, which accepted a "This event" category change in the form but had nowhere to persist it, so it silently reverted).
+
+**Why:** `BigEventException` and `DueDateException` already had `overrideCategoryId`; timed events were the only entity missing it. That gap was a latent bug — a "This event" category change round-tripped through the form but was dropped on save. Closing it means adding the column and wiring it through the four layers the other entities already cover: the `/api/events/[id]/occurrence` route, read-time expansion in `src/lib/events.ts` *and* `src/lib/calendar-ops.ts`, and the MCP/CLI occurrence schemas. A null override means "inherit the series category" (same convention as the siblings), so a single occurrence can't be cleared to "no category" independently of its series.

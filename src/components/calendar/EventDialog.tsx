@@ -149,6 +149,7 @@ export function EventDialog({
           notes: values.notes || null,
           startUtc,
           endUtc,
+          categoryId: values.categoryId || null,
           reminders: values.reminders,
         });
       }

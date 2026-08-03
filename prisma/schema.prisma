@@ -74,16 +74,20 @@ model Event {
 }
 
 // Per-occurrence override for a recurring Event.
-// Covers: cancel this one, retitle this one, move this one's time.
+// Covers: cancel this one, retitle this one, move this one's time, recategorize
+// this one. A null overrideCategoryId means "inherit the series category" (same
+// convention as BigEventException / DueDateException), so a single occurrence
+// can't be cleared to "no category" independently of its series.
 model EventException {
-  id               String    @id @default(cuid())
-  eventId          String
-  originalStartUtc DateTime
-  cancelled        Boolean   @default(false)
-  overrideTitle    String?
-  overrideNotes    String?
-  overrideStartUtc DateTime?
-  overrideEndUtc   DateTime?
+  id                 String    @id @default(cuid())
+  eventId            String
+  originalStartUtc   DateTime
+  cancelled          Boolean   @default(false)
+  overrideTitle      String?
+  overrideNotes      String?
+  overrideStartUtc   DateTime?
+  overrideEndUtc     DateTime?
+  overrideCategoryId String?
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 

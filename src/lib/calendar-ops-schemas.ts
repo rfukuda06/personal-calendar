@@ -65,6 +65,7 @@ export const setEventOccurrenceInput = z.object({
     overrideNotes: z.string().max(4000).nullable().optional(),
     overrideStartUtc: occDateTime.optional(),
     overrideEndUtc: occDateTime.optional(),
+    overrideCategoryId: z.string().nullable().optional(),
   }).refine((v) => Object.keys(v).length > 0, "empty override"),
 });
 

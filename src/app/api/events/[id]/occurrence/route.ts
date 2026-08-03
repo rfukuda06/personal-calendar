@@ -30,6 +30,7 @@ const patchSchema = z.object({
   notes: z.string().max(4000).nullable().optional(),
   startUtc: minuteBoundary.optional(),
   endUtc: minuteBoundary.optional(),
+  categoryId: z.string().cuid().nullable().optional(),
   // Reminders aren't per-exception in the data model; when present they're
   // applied to the parent series.
   reminders: offsetRemindersArraySchema,
@@ -55,7 +56,7 @@ export async function PATCH(req: Request, { params }: Params) {
   if (!(await ownsSeries(userId, id))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  const { originalStartUtc, title, notes, startUtc, endUtc, reminders } =
+  const { originalStartUtc, title, notes, startUtc, endUtc, categoryId, reminders } =
     parsed.data;
   if (startUtc && endUtc && endUtc <= startUtc) {
     return NextResponse.json(
@@ -77,6 +78,7 @@ export async function PATCH(req: Request, { params }: Params) {
         overrideNotes: notes ?? null,
         overrideStartUtc: startUtc ?? null,
         overrideEndUtc: endUtc ?? null,
+        overrideCategoryId: categoryId ?? null,
       },
       // Only write override columns the request actually included.
       // Coercing absent fields to null here would clobber prior overrides
@@ -89,6 +91,7 @@ export async function PATCH(req: Request, { params }: Params) {
         ...(notes !== undefined && { overrideNotes: notes }),
         ...(startUtc !== undefined && { overrideStartUtc: startUtc }),
         ...(endUtc !== undefined && { overrideEndUtc: endUtc }),
+        ...(categoryId !== undefined && { overrideCategoryId: categoryId }),
       },
     });
     if (reminders !== undefined) {
