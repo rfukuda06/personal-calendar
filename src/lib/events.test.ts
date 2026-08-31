@@ -61,3 +61,55 @@ test("expandEventSeries: a null overrideCategoryId inherits the series category"
   assert.equal(jun2.title, "Renamed"); // unrelated override still applies
   assert.equal(jun2.categoryId, "cat-work"); // null category => inherit series
 });
+
+// A one-off (non-recurring) event; overlaps the Jun 2 standup by default.
+function single(over: Partial<Parameters<typeof expandEventSeries>[0][number]> = {}) {
+  return {
+    id: "one-off-1",
+    title: "Doctor",
+    notes: null,
+    startUtc: D("2026-06-02T16:15:00.000Z"), // inside the 16:00–16:30 standup
+    endUtc: D("2026-06-02T16:45:00.000Z"),
+    categoryId: null,
+    reminders: [],
+    ...over,
+  };
+}
+
+test("expandEventSeries: a one-off event hides a recurring occurrence it overlaps", () => {
+  const out = expandEventSeries([single()], [series([])], ...RANGE);
+  const occurrences = out.filter((o) => o.isOccurrence);
+  // The Jun 2 recurring standup is hidden by the overlapping one-off; Jun 1 & 3 survive.
+  assert.deepEqual(
+    occurrences.map((o) => o.startUtc.toISOString().slice(0, 10)),
+    ["2026-06-01", "2026-06-03"],
+  );
+  // The one-off itself is still present.
+  assert.equal(out.some((o) => o.title === "Doctor" && !o.isOccurrence), true);
+});
+
+test("expandEventSeries: a one-off event does not hide non-overlapping occurrences", () => {
+  const out = expandEventSeries(
+    [single({ startUtc: D("2026-06-02T20:00:00.000Z"), endUtc: D("2026-06-02T21:00:00.000Z") })],
+    [series([])],
+    ...RANGE,
+  );
+  // No recurring occurrence overlaps this evening one-off, so all three survive.
+  const occurrences = out.filter((o) => o.isOccurrence);
+  assert.equal(occurrences.length, 3);
+});
+
+test("expandEventSeries: overlapping recurring occurrences do not hide each other", () => {
+  // Two daily series overlapping in time; neither is a one-off, so both stay.
+  const other = { ...series([]), id: "evt2", title: "Sync" };
+  const out = expandEventSeries([], [series([]), other], ...RANGE);
+  assert.equal(out.filter((o) => o.title === "Standup").length, 3);
+  assert.equal(out.filter((o) => o.title === "Sync").length, 3);
+});
+
+test("expandEventSeries: overlapping one-off events do not hide each other", () => {
+  const a = single({ id: "a", title: "A" });
+  const b = single({ id: "b", title: "B" }); // same overlapping slot as A
+  const out = expandEventSeries([a, b], [], ...RANGE);
+  assert.equal(out.filter((o) => !o.isOccurrence).length, 2);
+});

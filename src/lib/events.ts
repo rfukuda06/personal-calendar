@@ -113,7 +113,26 @@ export function expandEventSeries(
     ...expanded,
   ];
   out.sort((a, b) => a.startUtc.getTime() - b.startUtc.getTime());
-  return out;
+  return hideRecurringOverlaps(out);
+}
+
+/**
+ * Display rule: a recurring occurrence that overlaps (in time) any non-recurring
+ * event is hidden so the one-off wins its slot. Uses half-open overlap
+ * (`a.start < b.end && b.start < a.end`). Only non-recurring events hide
+ * recurring occurrences — recurring-vs-recurring and one-off-vs-one-off overlaps
+ * are left alone (they stack as before). Purely a display concern; reminders and
+ * stored data are unaffected because this runs only in the view-facing expander.
+ */
+export function hideRecurringOverlaps(events: EventWire[]): EventWire[] {
+  const singles = events.filter((e) => !e.isOccurrence);
+  return events.filter(
+    (e) =>
+      !e.isOccurrence ||
+      !singles.some(
+        (s) => e.startUtc < s.endUtc && s.startUtc < e.endUtc,
+      ),
+  );
 }
 
 /**
